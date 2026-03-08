@@ -112,3 +112,29 @@ def generate_post(user_input, persona="uz"):
     final_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', final_text)
     
     return final_text
+
+def rewrite_post(text, style="short"):
+    """Функция для переписывания готового черновика"""
+    print(f"✨ Запрос на рерайт в стиле: {style}")
+    
+    styles = {
+        "short": "Сделай текст короче и лаконичнее. Оставь только самую суть, убери лишнюю воду.",
+        "fun": "Перепиши текст в более веселом, драйвовом и геймерском стиле. Добавь чуть больше эмодзи.",
+        "pro": "Сделай текст более профессиональным, строгим и информативным."
+    }
+    
+    prompt_instruction = styles.get(style, "Улучши этот текст.")
+    
+    # Формируем запрос
+    prompt = f"{prompt_instruction}\n\nВАЖНО: Сохрани HTML-теги форматирования (<b>, <blockquote>) и все хэштеги в конце.\n\nОригинальный текст:\n{text}"
+    
+    try:
+        response = client.models.generate_content(model=MODEL_ID, contents=prompt)
+        final_text = response.text.strip()
+        
+        # Исправляем возможные ошибки ИИ с Markdown
+        final_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', final_text)
+        return final_text
+    except Exception as e:
+        print(f"❌ Ошибка рерайта: {e}")
+        return text # Если ошибка, возвращаем оригинал

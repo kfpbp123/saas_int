@@ -137,3 +137,15 @@ def get_all_posts():
     rows = c.fetchall()
     conn.close()
     return rows
+
+def record_published_post(photo_id, text, document_id, channel_id):
+    """Записывает пост сразу как 'posted', чтобы он учитывался в статистике"""
+    import sqlite3
+    import time
+    conn = sqlite3.connect('bot_data.db')
+    c = conn.cursor()
+    current_time = int(time.time())
+    c.execute("INSERT INTO queue (photo_id, text, document_id, channel_id, scheduled_time, status) VALUES (?, ?, ?, ?, ?, 'posted')", 
+              (photo_id, text, document_id, channel_id, current_time))
+    conn.commit()
+    conn.close()

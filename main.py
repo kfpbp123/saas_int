@@ -124,13 +124,14 @@ def process_queue():
     for post in posts:
         post_id, photo_id, text, document_id, channel_id = post
         target_channel = channel_id if channel_id else config.DEFAULT_CHANNEL
-        publish_post_data(post_id, photo_id, text, document_id, target_channel)
+        # Добавляем флаг is_auto=True, чтобы бот понимал, что это автоматическая публикация
+        publish_post_data(post_id, photo_id, text, document_id, target_channel, is_auto=True)
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(process_queue, 'interval', minutes=1)
 scheduler.start()
 
-def publish_post_data(post_id, photo_id, text, document_id, channel_id):
+def publish_post_data(post_id, photo_id, text, document_id, channel_id, is_auto=False):
     try:
         if photo_id:
             if ',' in photo_id:
@@ -150,10 +151,22 @@ def publish_post_data(post_id, photo_id, text, document_id, channel_id):
             
         if document_id: bot.send_document(channel_id, document_id)
         
-        if post_id != -1: database.mark_as_posted(post_id)
+        if post_id != -1: 
+            database.mark_as_posted(post_id)
+            # 🔔 УВЕДОМЛЕНИЕ АДМИНУ ОБ УСПЕШНОМ АВТОПОСТИНГЕ
+            if is_auto:
+                for admin in getattr(config, 'ADMIN_IDS', []):
+                    try: bot.send_message(admin, f"✅ <b>Автопостинг:</b> Запланированный пост успешно опубликован в {channel_id}!", parse_mode='HTML')
+                    except: pass
+                    
         print(f"✅ Пост #{post_id} опубликован в {channel_id}!")
         return True
     except Exception as e:
+        # 🔔 УВЕДОМЛЕНИЕ АДМИНУ ОБ ОШИБКЕ АВТОПОСТИНГА
+        if post_id != -1 and is_auto:
+            for admin in getattr(config, 'ADMIN_IDS', []):
+                try: bot.send_message(admin, f"❌ <b>Ошибка автопостинга:</b> Пост не опубликован в {channel_id}. Причина: {e}", parse_mode='HTML')
+                except: pass
         print(f"❌ Ошибка публикации в {channel_id}: {e}")
         return False
 
@@ -597,6 +610,10 @@ def callback_handler(call):
 
     if call.data == "pub_now":
         if publish_post_data(-1, draft['photo'], draft['text'], draft['document'], draft['channel']):
+            
+            # 📈 Сохраняем мгновенный пост в базу, чтобы статистика его посчитала!
+            database.record_published_post(draft['photo'], draft['text'], draft['document'], draft['channel'])
+            
             bot.answer_callback_query(call.id, "Опубликовано!")
             bot.edit_message_reply_markup(chat_id, target_id, reply_markup=None)
             bot.send_message(chat_id, f"🚀 Отправлено в {draft['channel']}!")

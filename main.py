@@ -13,6 +13,9 @@ import config
 import database
 import ai_generator
 import watermarker
+import ai_generator
+import watermarker
+import comments_analyzer
 
 database.init_db()
 bot = telebot.TeleBot(config.TELEGRAM_TOKEN)
@@ -22,7 +25,6 @@ user_personas = {}
 album_cache = {}
 
 # --- ВИЗУАЛ И ФОРМАТИРОВАНИЕ ---
-
 def get_time_greeting():
     tashkent_tz = pytz.timezone('Asia/Tashkent')
     hour = datetime.now(tashkent_tz).hour
@@ -86,7 +88,7 @@ def get_ad_text():
 # --- НОВАЯ ФУНКЦИЯ ЭКСПОРТА CSV ---
 def export_to_csv(chat_id):
     bot.send_message(chat_id, "⏳ Выгружаю данные в таблицу Excel...")
-    posts = database.get_all_posts() # Функция, которую мы добавили в database.py в прошлом шаге
+    posts = database.get_all_posts()
     
     if not posts:
         bot.send_message(chat_id, "📭 База данных пуста, выгружать нечего.")
@@ -96,19 +98,14 @@ def export_to_csv(chat_id):
     filename = f"posts_export_{datetime.now(tashkent_tz).strftime('%Y%m%d_%H%M%S')}.csv"
     
     try:
-        # Используем utf-8-sig, чтобы Excel правильно понял русские и узбекские буквы
         with open(filename, 'w', newline='', encoding='utf-8-sig') as f:
-            writer = csv.writer(f, delimiter=';') # Точка с запятой - стандарт для русского Excel
+            writer = csv.writer(f, delimiter=';') 
             writer.writerow(['ID', 'Канал', 'Текст поста', 'Статус', 'Время публикации', 'Наличие фото/файла'])
             
             for p in posts:
-                # p = (id, photo_id, text, document_id, status, channel_id, scheduled_time)
                 time_str = datetime.fromtimestamp(p[6], tashkent_tz).strftime('%d.%m.%Y %H:%M') if len(p) > 6 and p[6] else "Нет"
                 has_media = "Да" if p[1] or p[3] else "Нет"
-                
-                # Убираем HTML из выгрузки для удобства чтения
                 clean_text = re.sub(r'<[^>]+>', '', p[2])
-                
                 writer.writerow([p[0], p[5] if len(p) > 5 else "Default", clean_text, p[4], time_str, has_media])
                 
         with open(filename, 'rb') as f:
@@ -124,7 +121,6 @@ def process_queue():
     for post in posts:
         post_id, photo_id, text, document_id, channel_id = post
         target_channel = channel_id if channel_id else config.DEFAULT_CHANNEL
-        # Добавляем флаг is_auto=True, чтобы бот понимал, что это автоматическая публикация
         publish_post_data(post_id, photo_id, text, document_id, target_channel, is_auto=True)
 
 scheduler = BackgroundScheduler()
@@ -153,7 +149,6 @@ def publish_post_data(post_id, photo_id, text, document_id, channel_id, is_auto=
         
         if post_id != -1: 
             database.mark_as_posted(post_id)
-            # 🔔 УВЕДОМЛЕНИЕ АДМИНУ ОБ УСПЕШНОМ АВТОПОСТИНГЕ
             if is_auto:
                 for admin in getattr(config, 'ADMIN_IDS', []):
                     try: bot.send_message(admin, f"✅ <b>Автопостинг:</b> Запланированный пост успешно опубликован в {channel_id}!", parse_mode='HTML')
@@ -162,7 +157,6 @@ def publish_post_data(post_id, photo_id, text, document_id, channel_id, is_auto=
         print(f"✅ Пост #{post_id} опубликован в {channel_id}!")
         return True
     except Exception as e:
-        # 🔔 УВЕДОМЛЕНИЕ АДМИНУ ОБ ОШИБКЕ АВТОПОСТИНГА
         if post_id != -1 and is_auto:
             for admin in getattr(config, 'ADMIN_IDS', []):
                 try: bot.send_message(admin, f"❌ <b>Ошибка автопостинга:</b> Пост не опубликован в {channel_id}. Причина: {e}", parse_mode='HTML')
@@ -220,9 +214,9 @@ def get_main_menu():
     markup.add(KeyboardButton("📝 Создать пост"))
     markup.add(KeyboardButton("🎭 Выбор стиля"), KeyboardButton("📢 Выбор канала"))
     markup.add(KeyboardButton("➕ Добавить канал"), KeyboardButton("📊 Статус очереди"))
-    # Добавили кнопку Экспорта CSV
     markup.add(KeyboardButton("📈 Статистика"), KeyboardButton("📊 Экспорт (CSV)")) 
     markup.add(KeyboardButton("💰 Реклама"), KeyboardButton("💾 Бэкап базы"))
+    markup.add(KeyboardButton("💡 Запросы подписчиков"))
     return markup
 
 def get_cancel_markup():
@@ -241,13 +235,12 @@ def get_draft_markup(draft_id):
     )
     markup.add(
         InlineKeyboardButton("✏️ Правка", callback_data="edit_text"),
-        InlineKeyboardButton("✨ Переписать", callback_data="rewrite_menu") # НОВАЯ КНОПКА РЕРАЙТА
+        InlineKeyboardButton("✨ Переписать", callback_data="rewrite_menu")
     )
     markup.add(
         InlineKeyboardButton("💰 +Реклама", callback_data="add_ad"),
-        InlineKeyboardButton("🏷️ +Хэштеги", callback_data="add_tags")
+        InlineKeyboardButton("❌ Удалить", callback_data="cancel_action")
     )
-    markup.add(InlineKeyboardButton("❌ Удалить", callback_data="cancel_action"))
     return markup
 
 def update_draft_inline(chat_id, target_id, draft):
@@ -256,21 +249,6 @@ def update_draft_inline(chat_id, target_id, draft):
     except:
         try: bot.edit_message_caption(caption=draft['text'], chat_id=chat_id, message_id=target_id, parse_mode='HTML', reply_markup=markup)
         except Exception: pass
-
-def generate_hashtags(text):
-    clean_text = re.sub(r'<[^>]+>', ' ', text)
-    words = re.findall(r'\b[a-zA-Zа-яА-ЯёЁ]{5,}\b', clean_text.lower())
-    stop_words = {'чтобы', 'можно', 'которую', 'которые', 'будут', 'также', 'только', 'очень', 'после', 'через', 'более', 'имеет', 'будет', 'теперь', 'здесь', 'этого', 'свой', 'свои', 'если', 'uchun', 'bilan', 'qilish', 'orqali'}
-    
-    hashtags = []
-    for word in words:
-        if word not in stop_words and f"#{word}" not in text.lower():
-            hashtags.append(f"#{word.capitalize()}")
-        if len(hashtags) >= 3: break
-            
-    standard_tags = "#Minecraft #Mods #Addon"
-    if hashtags: return f"{standard_tags} " + " ".join(hashtags)
-    return standard_tags
 
 # --- ОБРАБОТЧИКИ ---
 @bot.message_handler(commands=['start'])
@@ -309,6 +287,19 @@ def handle_text_photo(message):
             markup.add(InlineKeyboardButton(f"{'✅ ' if active_p == 'ru' else ''}🇷🇺 Русский", callback_data="set_persona_ru"))
             markup.add(InlineKeyboardButton(f"{'✅ ' if active_p == 'en' else ''}🇬🇧 Английский", callback_data="set_persona_en"))
             bot.send_message(message.chat.id, "Выбери личность бота:", reply_markup=markup)
+            return
+        elif message.text == "💡 Запросы подписчиков":
+            msg = bot.send_message(message.chat.id, "⏳ Читаю комментарии и анализирую...")
+            
+            # Вызываем функцию из нашего НОВОГО файла
+            report = comments_analyzer.analyze_comments()
+            
+            # Кнопка для очистки прочитанных комментариев
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton("🗑 Очистить обработанные", callback_data="clear_comments_db"))
+            
+            bot.delete_message(message.chat.id, msg.message_id)
+            bot.send_message(message.chat.id, report, parse_mode="HTML", reply_markup=markup)
             return
         elif message.text == "📈 Статистика":
             show_stats(message.chat.id)
@@ -511,6 +502,12 @@ def callback_handler(call):
     chat_id = call.message.chat.id
     target_id = call.message.message_id
     
+    if call.data == "clear_comments_db":
+        database.clear_comments()
+        bot.answer_callback_query(call.id, "✅ База комментариев очищена!")
+        bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+        return
+    
     if call.data == "cancel_action":
         try: bot.delete_message(chat_id, target_id)
         except: pass
@@ -539,7 +536,6 @@ def callback_handler(call):
     if not draft and not call.data.startswith("sched_"):
         return bot.answer_callback_query(call.id, "Черновик устарел.", show_alert=True)
 
-    # --- МЕНЮ РЕРАЙТА ---
     if call.data == "rewrite_menu":
         markup = InlineKeyboardMarkup(row_width=2)
         markup.add(
@@ -553,16 +549,11 @@ def callback_handler(call):
         bot.edit_message_reply_markup(chat_id, target_id, reply_markup=markup)
         return
 
-    # --- ОБРАБОТКА РЕРАЙТА ---
     if call.data.startswith("rw_"):
         style = call.data.split("_")[1]
         bot.answer_callback_query(call.id, "⏳ ИИ переписывает текст...")
-        
-        # Вызываем функцию рерайта из ai_generator
         new_text = ai_generator.rewrite_post(draft['text'], style)
         draft['text'] = new_text
-        
-        # Обновляем сообщение и возвращаем основное меню
         update_draft_inline(chat_id, target_id, draft)
         return
 
@@ -599,21 +590,9 @@ def callback_handler(call):
         bot.answer_callback_query(call.id, "Добавлено!")
         return
 
-    if call.data == "add_tags":
-        if draft.get('tags_added'): return bot.answer_callback_query(call.id, "Уже добавлены!", show_alert=True)
-        new_tags = generate_hashtags(draft['text'])
-        draft['text'] += f"\n\n{new_tags}"
-        draft['tags_added'] = True
-        update_draft_inline(chat_id, target_id, draft) 
-        bot.answer_callback_query(call.id, "Хэштеги добавлены!")
-        return
-
     if call.data == "pub_now":
         if publish_post_data(-1, draft['photo'], draft['text'], draft['document'], draft['channel']):
-            
-            # 📈 Сохраняем мгновенный пост в базу, чтобы статистика его посчитала!
             database.record_published_post(draft['photo'], draft['text'], draft['document'], draft['channel'])
-            
             bot.answer_callback_query(call.id, "Опубликовано!")
             bot.edit_message_reply_markup(chat_id, target_id, reply_markup=None)
             bot.send_message(chat_id, f"🚀 Отправлено в {draft['channel']}!")
@@ -670,8 +649,20 @@ def handle_document(message):
             bot.reply_to(message, "✅ Файл прикреплен!")
             return
     bot.reply_to(message, "Сделай Reply на сообщение с кнопками!")
+    
+# --- СБОР КОММЕНТАРИЕВ ИЗ ГРУППЫ ---
+@bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup'], content_types=['text'])
+def catch_group_comments(message):
+    """Слушает сообщения в группе (комментариях) и сохраняет их в базу"""
+    import time
+    # Игнорируем команды ботам в группе (если они есть)
+    if message.text.startswith('/'):
+        return
+    
+    # Сохраняем имя юзера и текст комментария
+    database.save_comment(message.from_user.first_name, message.text, int(time.time()))
 
-print("Бот v14 (Рерайт + Экспорт CSV) запущен!")
+print("Бот v15 (Умные хэштеги от Gemini) запущен!")
 while True:
     try: bot.polling(none_stop=True, timeout=90)
     except Exception as e: time.sleep(5)

@@ -14,7 +14,7 @@ PROMPTS = {
 Используй тег <blockquote expandable> для основного блока.
 
 Формат:
-📦 <b>[Название мода]</b>
+📦 <b>[Название]</b>
 
 <blockquote expandable><b>Bu nima?</b>
 [Описание]
@@ -28,7 +28,12 @@ PROMPTS = {
 <blockquote>💖 - zo`r
 💔 - Unchamas</blockquote>
 
-#[Хэштег1] #[Хэштег2]
+#Minecraft #[Категория]
+
+ПРАВИЛА ДЛЯ ХЭШТЕГОВ (КРИТИЧЕСКИ ВАЖНО):
+1. Внимательно проанализируй, о чем пост. Выбери строго ОДНУ категорию и напиши её хэштег: #Mods, #Maps, #Textures или #Shaders.
+2. В конце поста должно быть ровно ДВА хэштега: #Minecraft и хэштег выбранной категории.
+3. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО писать название мода в виде хэштега! Не придумывай свои слова для хэштегов!
 """,
 
     "ru": """Ты — креативный редактор Telegram-канала о модах для Minecraft.
@@ -37,7 +42,7 @@ PROMPTS = {
 Используй тег <blockquote expandable> для основного блока.
 
 Формат:
-📦 <b>[Название мода]</b>
+📦 <b>[Название]</b>
 
 <blockquote expandable><b>Что это такое?</b>
 [Описание]
@@ -51,7 +56,12 @@ PROMPTS = {
 <blockquote>💖 - Имба
 💔 - Не оч</blockquote>
 
-#[Хэштег1] #[Хэштег2]
+#Minecraft #[Категория]
+
+ПРАВИЛА ДЛЯ ХЭШТЕГОВ (КРИТИЧЕСКИ ВАЖНО):
+1. Внимательно проанализируй, о чем пост. Выбери строго ОДНУ категорию и напиши её хэштег на русском: #Моды, #Карты, #Текстуры или #Шейдеры.
+2. В конце поста должно быть ровно ДВА хэштега: #Minecraft и хэштег выбранной категории.
+3. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО писать название мода в виде хэштега! Не придумывай свои слова для хэштегов!
 """,
 
     "en": """You are a creative editor for a Minecraft mods Telegram channel.
@@ -74,7 +84,12 @@ Format:
 <blockquote>💖 - Awesome
 💔 - Not great</blockquote>
 
-#[Hashtag1] #[Hashtag2]
+#Minecraft #[Category]
+
+HASHTAG RULES (CRITICAL):
+1. Analyze the content and choose exactly ONE category hashtag from this list: #Mods, #Maps, #Textures, or #Shaders.
+2. The post must end with exactly two hashtags: #Minecraft and the chosen category hashtag.
+3. NEVER use the mod's name as a hashtag! Do not invent your own hashtags!
 """
 }
 
@@ -98,7 +113,6 @@ def generate_post(user_input, persona="uz"):
     site_context = ""
     
     if url:
-        print(f"🔗 Найдена ссылка, читаю сайт: {url}")
         page_text = fetch_page_content(url)
 
     selected_prompt = PROMPTS.get(persona, PROMPTS["uz"])
@@ -107,34 +121,25 @@ def generate_post(user_input, persona="uz"):
     response = client.models.generate_content(model=MODEL_ID, contents=prompt)
     
     final_text = response.text.strip()
-    
     # Конвертируем Markdown-звездочки в HTML-теги для жирного текста
     final_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', final_text)
     
     return final_text
 
 def rewrite_post(text, style="short"):
-    """Функция для переписывания готового черновика"""
-    print(f"✨ Запрос на рерайт в стиле: {style}")
-    
     styles = {
         "short": "Сделай текст короче и лаконичнее. Оставь только самую суть, убери лишнюю воду.",
         "fun": "Перепиши текст в более веселом, драйвовом и геймерском стиле. Добавь чуть больше эмодзи.",
         "pro": "Сделай текст более профессиональным, строгим и информативным."
     }
-    
     prompt_instruction = styles.get(style, "Улучши этот текст.")
-    
-    # Формируем запрос
     prompt = f"{prompt_instruction}\n\nВАЖНО: Сохрани HTML-теги форматирования (<b>, <blockquote>) и все хэштеги в конце.\n\nОригинальный текст:\n{text}"
     
     try:
         response = client.models.generate_content(model=MODEL_ID, contents=prompt)
         final_text = response.text.strip()
-        
-        # Исправляем возможные ошибки ИИ с Markdown
         final_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', final_text)
         return final_text
     except Exception as e:
         print(f"❌ Ошибка рерайта: {e}")
-        return text # Если ошибка, возвращаем оригинал
+        return text

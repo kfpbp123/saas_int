@@ -11,6 +11,7 @@ import config
 import database
 import ai_generator
 import watermarker
+import pytz
 
 database.init_db()
 bot = telebot.TeleBot(config.TELEGRAM_TOKEN)
@@ -399,8 +400,15 @@ def process_exact_time(message, draft_id, chat_id):
         return
 
     try:
-        dt = datetime.strptime(message.text, "%d.%m.%Y %H:%M")
-        timestamp = int(dt.timestamp())
+        # 1. Считываем время, которое ввел пользователь
+        dt_naive = datetime.strptime(message.text, "%d.%m.%Y %H:%M")
+        
+        # 2. ЖЕСТКО привязываем это время к часовому поясу Ташкента
+        tashkent_tz = pytz.timezone('Asia/Tashkent')
+        dt_aware = tashkent_tz.localize(dt_naive)
+        
+        # 3. Получаем правильный универсальный timestamp
+        timestamp = int(dt_aware.timestamp())
         
         if timestamp < time.time():
             msg = bot.send_message(chat_id, "⚠️ Время прошло! Введи дату заново:", reply_markup=get_cancel_markup())
@@ -411,7 +419,7 @@ def process_exact_time(message, draft_id, chat_id):
         if draft:
             database.add_to_queue(draft['photo'], draft['text'], draft['document'], draft['channel'], timestamp)
             bot.edit_message_reply_markup(chat_id, draft_id, reply_markup=None)
-            bot.send_message(chat_id, f"🕒 Запланировано на {dt.strftime('%d.%m.%Y %H:%M')} ({draft['channel']})", reply_markup=get_main_menu())
+            bot.send_message(chat_id, f"🕒 Запланировано на {dt_naive.strftime('%d.%m.%Y %H:%M')} ({draft['channel']})", reply_markup=get_main_menu())
             del user_drafts[draft_id]
             
     except ValueError:

@@ -1,0 +1,6 @@
+git init
+git remote add origin https://github.com/kfpbp123/mine_bot_tg.git
+git add .
+git commit -m "update bot"
+git branch -M main
+git push -f origin main

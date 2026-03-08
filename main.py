@@ -1,6 +1,5 @@
-# main.py
 import telebot
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup
 from apscheduler.schedulers.background import BackgroundScheduler
 import time
 from datetime import datetime
@@ -13,132 +12,149 @@ import watermarker
 # Инициализация
 database.init_db()
 bot = telebot.TeleBot(config.TELEGRAM_TOKEN)
+
+# Хранилище временных данных
 user_drafts = {}
-active_channels = {} 
+active_channels = {}
 
-# --- СИСТЕМА ПРОВЕРКИ ОЧЕРЕДИ (АВТОПОСТИНГ) ---
-
+# --- ПЛАНИРОВЩИК (АВТОПОСТИНГ) ---
 def check_queue():
-    """Функция, которая вызывается планировщиком каждую минуту"""
     ready_posts = database.get_ready_posts()
     for post in ready_posts:
         post_id, photo_id, text, doc_id, channel_id = post
         try:
-            # Отправка фото с текстом
             if photo_id:
                 bot.send_photo(channel_id, photo_id, caption=text, parse_mode="HTML")
             elif text:
                 bot.send_message(channel_id, text, parse_mode="HTML")
             
-            # Отправка документа (если есть)
-            if doc_id:
-                bot.send_document(channel_id, doc_id)
-                
-            # Помечаем как отправленное
             database.mark_as_posted(post_id)
-            print(f"✅ Пост {post_id} успешно опубликован в {channel_id}")
-            
+            print(f"✅ Опубликовано в {channel_id}")
         except Exception as e:
-            print(f"❌ Ошибка публикации поста {post_id}: {e}")
+            print(f"❌ Ошибка публикации: {e}")
 
-# Запуск планировщика
-scheduler = BackgroundScheduler(timezone="Asia/Tashkent") # Укажите ваш часовой пояс
+scheduler = BackgroundScheduler()
 scheduler.add_job(check_queue, 'interval', minutes=1)
 scheduler.start()
 
-# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
-
-def is_admin(user_id):
-    if hasattr(config, 'ADMIN_IDS'):
-        return user_id in config.ADMIN_IDS
-    return True 
-
-def get_cancel_markup():
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("❌ Отмена", callback_data="cancel_action"))
-    return markup
-
-# --- ОБРАБОТЧИКИ КОМАНД ---
+# --- ОБРАБОТКА КОМАНД ---
 
 @bot.message_handler(commands=['start'])
-def start(message):
-    if not is_admin(message.from_user.id): return
-    bot.send_message(message.chat.id, "🤖 Бот готов. Отправь описание мода или ссылку, чтобы создать пост.")
+def start_cmd(message):
+    markup = ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("📝 Создать пост", "📊 Статистика")
+    bot.send_message(message.chat.id, "<b>Привет!</b> Я помогу создать пост с переводом и водяным знаком.", parse_mode="HTML", reply_markup=markup)
 
-@bot.message_handler(commands=['queue'])
-def show_queue(message):
-    if not is_admin(message.from_user.id): return
-    pending = database.get_all_pending()
-    if not pending:
-        bot.send_message(message.chat.id, "📭 Очередь пуста.")
+@bot.message_handler(func=lambda message: message.text == "📝 Создать пост")
+def request_content(message):
+    # Очищаем старые черновики пользователя для чистоты
+    msg = bot.send_message(
+        message.chat.id, 
+        "<b>Ajoyib!</b> Пришлите фото мода и его описание (в одном сообщении или просто текст).",
+        parse_mode="HTML"
+    )
+    # ПЕРЕХОД К СЛЕДУЮЩЕМУ ШАГУ
+    bot.register_next_step_handler(msg, process_step_content)
+
+def process_step_content(message):
+    chat_id = message.chat.id
+    input_text = message.caption if message.caption else message.text
+
+    if not input_text:
+        bot.send_message(chat_id, "❌ Ошибка: Мне нужен текст описания. Нажми кнопку создания поста еще раз.")
         return
-    
-    res = "📅 <b>Очередь публикаций:</b>\n\n"
-    for p in pending:
-        dt = datetime.fromtimestamp(p[5]).strftime('%d.%m %H:%M') if p[5] else "Сразу"
-        res += f"• {dt} -> {p[4]}\n"
-    bot.send_message(message.chat.id, res, parse_mode="HTML")
 
-# --- ЛОГИКА СОЗДАНИЯ ПОСТА ---
+    wait_msg = bot.send_message(chat_id, "⏳ Обрабатываю... Накладываю логотип и перевожу текст через ИИ.")
 
-@bot.message_handler(func=lambda m: True)
-def handle_text(message):
-    if not is_admin(message.from_user.id): return
+    final_photo_id = None
     
-    msg = bot.send_message(message.chat.id, "⏳ Генерирую пост...")
-    
-    # Генерация текста через Gemini
+    # Обработка фото, если оно есть
+    if message.photo:
+        try:
+            file_info = bot.get_file(message.photo[-1].file_id)
+            downloaded_file = bot.download_file(file_info.file_path)
+            
+            in_p, out_p = f"in_{chat_id}.jpg", f"out_{chat_id}.jpg"
+            with open(in_p, 'wb') as f: f.write(downloaded_file)
+            
+            # Вызов исправленного watermarker
+            watermarker.add_watermark(in_p, out_p)
+            
+            with open(out_p, 'rb') as f:
+                sent = bot.send_photo(chat_id, f, caption="📸 Фото готово!")
+                final_photo_id = sent.photo[-1].file_id
+            
+            if os.path.exists(in_p): os.remove(in_p)
+            if os.path.exists(out_p): os.remove(out_p)
+        except Exception as e:
+            bot.send_message(chat_id, f"⚠️ Ошибка фото: {e}")
+
+    # Генерация текста через AI
     try:
-        generated_text = ai_generator.generate_post(message.text)
-        
-        markup = InlineKeyboardMarkup()
-        markup.row(InlineKeyboardButton("✅ В очередь", callback_data="add_to_q"),
-                   InlineKeyboardButton("📅 Время", callback_data="sched_exact"))
-        markup.add(InlineKeyboardButton("🗑 Удалить", callback_data="cancel_action"))
-        
-        sent_msg = bot.send_message(message.chat.id, generated_text, parse_mode="HTML", reply_markup=markup)
-        
-        # Сохраняем черновик
-        user_drafts[sent_msg.message_id] = {
-            'text': generated_text,
-            'photo': None,
-            'document': None,
-            'channel': config.DEFAULT_CHANNEL
-        }
+        translated_text = ai_generator.generate_post(input_text, persona="uz")
     except Exception as e:
-        bot.edit_message_text(f"❌ Ошибка нейросети: {e}", message.chat.id, msg.message_id)
+        print(f"AI Error: {e}")
+        translated_text = f"❌ Ошибка ИИ. Оригинал:\n\n{input_text}"
+
+    # Создание кнопок
+    markup = InlineKeyboardMarkup()
+    markup.row(
+        InlineKeyboardButton("✅ В очередь", callback_data="add_to_q"),
+        InlineKeyboardButton("📅 Время", callback_data="sched_exact")
+    )
+    markup.add(InlineKeyboardButton("🗑 Удалить", callback_data="cancel_action"))
+
+    # Отправка результата
+    res_msg = bot.send_message(chat_id, translated_text, reply_markup=markup, parse_mode="HTML")
+    
+    # Сохраняем данные во временный словарь
+    user_drafts[res_msg.message_id] = {
+        'photo': final_photo_id,
+        'text': translated_text,
+        'document': None,
+        'channel': config.DEFAULT_CHANNEL
+    }
+    bot.delete_message(chat_id, wait_msg.message_id)
+
+# --- CALLBACK ОБРАБОТЧИКИ ---
 
 @bot.callback_query_handler(func=lambda call: True)
-def callback_query(call):
+def handle_callbacks(call):
+    chat_id = call.message.chat.id
+    
     if call.data == "cancel_action":
-        bot.delete_message(call.message.chat.id, call.message.message_id)
+        bot.delete_message(chat_id, call.message.message_id)
+        if call.message.message_id in user_drafts:
+            del user_drafts[call.message.message_id]
         return
 
     draft = user_drafts.get(call.message.message_id)
-    
+    if not draft:
+        bot.answer_callback_query(call.id, "❌ Ошибка: Данные устарели. Создайте пост заново.")
+        return
+
     if call.data == "add_to_q":
-        if draft:
-            database.add_to_queue(draft['photo'], draft['text'], draft['document'], draft['channel'], int(time.time()))
-            bot.answer_callback_query(call.id, "✅ Добавлено в очередь")
-            bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+        database.add_to_queue(draft['photo'], draft['text'], None, draft['channel'], int(time.time()))
+        bot.answer_callback_query(call.id, "✅ Добавлено в очередь!")
+        bot.edit_message_reply_markup(chat_id, call.message.message_id, reply_markup=None)
 
-    if call.data == "sched_exact":
-        msg = bot.send_message(call.message.chat.id, "🕒 Введи дату и время в формате:\n`07.03.2026 21:00`", parse_mode="Markdown")
-        bot.register_next_step_handler(msg, process_time, call.message.message_id)
+    elif call.data == "sched_exact":
+        msg = bot.send_message(chat_id, "🕒 Введи время в формате: `08.03.2026 15:30`", parse_mode="Markdown")
+        bot.register_next_step_handler(msg, process_scheduled_time, call.message.message_id)
 
-def process_time(message, draft_msg_id):
+def process_scheduled_time(message, draft_msg_id):
     try:
         dt = datetime.strptime(message.text, "%d.%m.%Y %H:%M")
-        timestamp = int(dt.timestamp())
+        ts = int(dt.timestamp())
         
         draft = user_drafts.get(draft_msg_id)
         if draft:
-            database.add_to_queue(draft['photo'], draft['text'], draft['document'], draft['channel'], timestamp)
+            database.add_to_queue(draft['photo'], draft['text'], None, draft['channel'], ts)
             bot.send_message(message.chat.id, f"📅 Запланировано на {message.text}")
             bot.edit_message_reply_markup(message.chat.id, draft_msg_id, reply_markup=None)
-    except ValueError:
-        bot.send_message(message.chat.id, "❌ Неверный формат. Попробуй еще раз через кнопку 'Время'.")
+    except:
+        bot.send_message(message.chat.id, "❌ Неверный формат. Начни заново через кнопку создания поста.")
 
-# Запуск бота
-print("🚀 Бот запущен...")
-bot.infinity_polling()
+if __name__ == "__main__":
+    print("🚀 Бот запущен...")
+    bot.polling(none_stop=True)

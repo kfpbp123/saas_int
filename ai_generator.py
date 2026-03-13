@@ -1,11 +1,12 @@
 from google import genai
+from google.genai import types
 import config
 import re
 import requests
 from bs4 import BeautifulSoup
 import time
 
-# Используем проверенную стабильную модель
+# Используем стабильную модель
 MODEL_ID = "gemini-1.5-flash"
 client = genai.Client(api_key=config.GEMINI_KEY)
 
@@ -87,19 +88,38 @@ def generate_post(user_input, persona="uz", template="standard"):
     
     full_prompt = f"{selected_prompt}\n\nНАПИШИ ПОСТ СТРОГО ПО ЭТОМУ ШАБЛОНУ:\n{selected_template}\n\nДАННЫЕ:\n{user_input}\n{site_content}"
     
-    for attempt in range(2): # 2 попытки
+    # Настройки безопасности: отключаем блокировку потенциально "опасного" контента, 
+    # который часто срабатывает ложно на словах про животных или моды.
+    safety_settings = [
+        types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE"),
+        types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"),
+        types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"),
+        types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
+    ]
+
+    for attempt in range(3): # Увеличим до 3 попыток
         try:
-            response = client.models.generate_content(model=MODEL_ID, contents=full_prompt)
+            response = client.models.generate_content(
+                model=MODEL_ID, 
+                contents=full_prompt,
+                config=types.GenerateContentConfig(safety_settings=safety_settings)
+            )
+            
             if response.text:
                 final_text = response.text.strip()
                 final_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', final_text)
                 return final_text
-            time.sleep(1)
+            
+            # Если текст пустой, возможно, сработал внутренний фильтр, пробуем упрощенный запрос
+            if attempt == 1:
+                full_prompt = f"Напиши пост про этот мод для Minecraft: {user_input}. Используй русский язык."
+                
+            time.sleep(1.5)
         except Exception as e:
             print(f"Попытка {attempt+1} провалена: {e}")
-            time.sleep(1)
+            time.sleep(1.5)
             
-    return "⚠️ Нейросеть не смогла обработать этот текст. Попробуйте перефразировать или отправьте ссылку."
+    return "⚠️ Нейросеть отклонила запрос по соображениям безопасности или из-за сбоя. Попробуйте изменить описание (убрать слова 'альфа', 'стать животным' и т.д.) или просто отправьте ссылку на мод."
 
 def rewrite_post(text, style="short"):
     styles = {

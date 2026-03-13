@@ -3,9 +3,11 @@ import config
 import re
 import requests
 from bs4 import BeautifulSoup
+import time
 
+# Используем проверенную стабильную модель
+MODEL_ID = "gemini-1.5-flash"
 client = genai.Client(api_key=config.GEMINI_KEY)
-MODEL_ID = "gemini-2.0-flash"
 
 PROMPTS = {
     "uz": "Siz Minecraft modlari haqidagi Telegram kanali uchun kreativ muharrirsiz. Faqat o'zbek tilida (lotin alifbosida) javob bering.",
@@ -85,14 +87,19 @@ def generate_post(user_input, persona="uz", template="standard"):
     
     full_prompt = f"{selected_prompt}\n\nНАПИШИ ПОСТ СТРОГО ПО ЭТОМУ ШАБЛОНУ:\n{selected_template}\n\nДАННЫЕ:\n{user_input}\n{site_content}"
     
-    try:
-        response = client.models.generate_content(model=MODEL_ID, contents=full_prompt)
-        final_text = response.text.strip()
-        final_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', final_text)
-        return final_text
-    except Exception as e:
-        print(f"Error: {e}")
-        return "Ошибка генерации. Попробуйте другой запрос."
+    for attempt in range(2): # 2 попытки
+        try:
+            response = client.models.generate_content(model=MODEL_ID, contents=full_prompt)
+            if response.text:
+                final_text = response.text.strip()
+                final_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', final_text)
+                return final_text
+            time.sleep(1)
+        except Exception as e:
+            print(f"Попытка {attempt+1} провалена: {e}")
+            time.sleep(1)
+            
+    return "⚠️ Нейросеть не смогла обработать этот текст. Попробуйте перефразировать или отправьте ссылку."
 
 def rewrite_post(text, style="short"):
     styles = {

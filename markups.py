@@ -12,7 +12,6 @@ def get_main_menu(lang='uz'):
     return markup
 
 def get_settings_menu(lang='uz'):
-    # Локализация для настроек будет добавлена по необходимости, пока оставим базовые ключи
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
         InlineKeyboardButton("📢 Ad Text", callback_data="set_ad_text"),
@@ -66,7 +65,6 @@ def get_draft_markup(lang='uz'):
 def get_rewrite_menu(lang='uz'):
     b = BUTTONS.get(lang, BUTTONS['uz'])
     markup = InlineKeyboardMarkup(row_width=2)
-    # Названия стилей можно оставить как есть или тоже локализовать
     markup.add(
         InlineKeyboardButton("🧱 Short", callback_data="rw_short"),
         InlineKeyboardButton("🎮 Fun", callback_data="rw_fun")
@@ -77,20 +75,23 @@ def get_rewrite_menu(lang='uz'):
     )
     return markup
 
-def get_publish_queue_menu(target_id, prefix="sched_", lang='uz'):
+def get_publish_queue_menu(target_id, prefix="sc", lang='uz'):
+    """
+    prefix: 'sc' для черновика (sched), 'qt' для очереди (qtime)
+    """
     b = BUTTONS.get(lang, BUTTONS['uz'])
     markup = InlineKeyboardMarkup(row_width=3)
     markup.add(
-        InlineKeyboardButton("+2h", callback_data=f"{prefix}interval_2_{target_id}"),       
-        InlineKeyboardButton("+4h", callback_data=f"{prefix}interval_4_{target_id}"),       
-        InlineKeyboardButton("+6h", callback_data=f"{prefix}interval_6_{target_id}")
+        InlineKeyboardButton("+2h", callback_data=f"{prefix}_int_2_{target_id}"),       
+        InlineKeyboardButton("+4h", callback_data=f"{prefix}_int_4_{target_id}"),       
+        InlineKeyboardButton("+6h", callback_data=f"{prefix}_int_6_{target_id}")
     )
     markup.add(
-        InlineKeyboardButton("+12h", callback_data=f"{prefix}interval_12_{target_id}"),   
-        InlineKeyboardButton("+24h", callback_data=f"{prefix}interval_24_{target_id}"),
-        InlineKeyboardButton("🕒 Custom", callback_data=f"{prefix}exact_{target_id}")
+        InlineKeyboardButton("+12h", callback_data=f"{prefix}_int_12_{target_id}"),   
+        InlineKeyboardButton("+24h", callback_data=f"{prefix}_int_24_{target_id}"),
+        InlineKeyboardButton("🕒 Custom", callback_data=f"{prefix}_ex_{target_id}")
     )
-    markup.add(InlineKeyboardButton(b['back'], callback_data="back_to_draft" if prefix == "sched_" else "q_page_0"))
+    markup.add(InlineKeyboardButton(b['back'], callback_data="back_to_draft" if prefix == "sc" else "q_page_0"))
     return markup
 
 def get_queue_manage_markup(post_id, page, lang='uz'):

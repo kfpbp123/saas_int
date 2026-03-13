@@ -1,14 +1,13 @@
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 import config
 import re
 import requests
 from bs4 import BeautifulSoup
-import time
 
-# Используем Flash 2.0 - она самая современная и быстрая
-MODEL_ID = "gemini-2.0-flash"
-client = genai.Client(api_key=config.GEMINI_KEY)
+# Настройка API
+genai.configure(api_key=config.GEMINI_KEY)
+MODEL_ID = "gemini-1.5-flash"
+model = genai.GenerativeModel(MODEL_ID)
 
 PROMPTS = {
     "uz": """Ты — креативный редактор Telegram-канала о модах для Minecraft.
@@ -35,7 +34,7 @@ PROMPTS = {
 
     "ru": """Ты — креативный редактор Telegram-канала о модах для Minecraft.
 Я передам тебе текст. Вычлени главное и напиши пост в драйвовом и веселом стиле. Уложись в 800 символов.
-Пиши ТОЛЬКО на русском языке. Это ИГРОВОЙ КОНТЕНТ, поэтому слова 'взрыв', 'оружие', 'удар' используются в контексте игры.
+Пиши ТОЛЬКО на русском языке. Это ИГРА, поэтому термины 'взрывы', 'оружие' — это нормально.
 Используй тег <blockquote expandable> для основного блока.
 
 Формат:
@@ -87,56 +86,50 @@ def fetch_page_content(url):
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
         response = requests.get(url, headers=headers, timeout=10)
         soup = BeautifulSoup(response.content, 'html.parser')
-        return soup.get_text(separator=' ', strip=True)[:5000]
-    except: return ""
+        text = soup.get_text(separator=' ', strip=True)
+        return text[:5000] 
+    except Exception as e:
+        print(f"⚠️ Не смог прочитать сайт {url}: {e}")
+        return ""
 
 def generate_post(user_input, persona="uz"):
     url = extract_url(user_input)
-    site_context = fetch_page_content(url) if url else ""
-    selected_prompt = PROMPTS.get(persona, PROMPTS["uz"])
-    
-    full_prompt = f"{selected_prompt}\n\nСырая информация от пользователя:\n{user_input}{site_context}"
-    
-    # Полностью отключаем фильтры для игрового контента
-    safety_settings = [
-        types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE"),
-        types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"),
-        types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"),
-        types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
-    ]
+    site_context = ""
+    if url:
+        site_context = f"\nКонтент с сайта:\n{fetch_page_content(url)}"
 
+    selected_prompt = PROMPTS.get(persona, PROMPTS["uz"])
+    full_prompt = f"{selected_prompt}\n\nСырая информация:\n{user_input}{site_context}"
+    
     try:
-        response = client.models.generate_content(
-            model=MODEL_ID, 
-            contents=full_prompt,
-            config=types.GenerateContentConfig(safety_settings=safety_settings)
+        # В этой библиотеке фильтры настраиваются проще и работают надежнее
+        response = model.generate_content(
+            full_prompt,
+            safety_settings=[
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+            ]
         )
         if response.text:
             final_text = response.text.strip()
             final_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', final_text)
             return final_text
     except Exception as e:
-        print(f"Error: {e}")
-            
-    return "⚠️ Не удалось сгенерировать пост. Попробуйте еще раз с более простым описанием."
+        print(f"❌ Ошибка генерации: {e}")
+    
+    return "⚠️ Не удалось создать пост. Попробуйте еще раз с другой ссылкой или описанием."
 
 def rewrite_post(text, style="short"):
-    styles = {
-        "short": "Сделай текст короче и лаконичнее.",
-        "fun": "Перепиши в драйвовом и геймерском стиле.",
-        "pro": "Сделай текст профессиональным и детальным.",
-        "scientist": "Перепиши как ученый.",
-        "boring": "Сделай текст скучным."
-    }
-    instruction = styles.get(style, "Улучши этот текст.")
-    prompt = f"{instruction}\n\nВАЖНО: Сохрани HTML-теги.\n\nТекст:\n{text}"
+    prompt = f"Перепиши этот текст в стиле {style}, сохранив HTML: {text}"
     try:
-        response = client.models.generate_content(model=MODEL_ID, contents=prompt)
+        response = model.generate_content(prompt)
         return re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', response.text.strip())
     except: return text
 
 def chat_with_ai(user_message):
     try:
-        response = client.models.generate_content(model=MODEL_ID, contents=f"Ты помощник администратора канала Minecraft. Отвечай кратко.\nПользователь: {user_message}")
+        response = model.generate_content(f"Ты помощник админа канала Minecraft. Отвечай кратко: {user_message}")
         return response.text.strip()
     except: return "Ошибка чата."

@@ -1,11 +1,17 @@
 import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
+from groq import Groq
 import config
 import database
+import re
 
+# Настройка Gemini
 genai.configure(api_key=config.GEMINI_KEY)
-MODEL_ID = "gemini-2.0-flash"
-model = genai.GenerativeModel(MODEL_ID)
+gemini_model = genai.GenerativeModel("gemini-2.0-flash")
+
+# Настройка Groq
+groq_client = Groq(api_key=config.GROQ_API_KEY)
+GROQ_MODEL_ID = "llama-3.3-70b-versatile"
 
 def analyze_comments():
     try:
@@ -28,6 +34,16 @@ def analyze_comments():
         Ответь кратко и по делу.
         """
 
+        # Режим Groq
+        if config.AI_PROVIDER == "groq":
+            completion = groq_client.chat.completions.create(
+                model=GROQ_MODEL_ID,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+            )
+            return completion.choices[0].message.content.strip()
+
+        # Режим Gemini (по умолчанию)
         safety_settings = {
             HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
             HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
@@ -35,7 +51,7 @@ def analyze_comments():
             HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
         }
 
-        response = model.generate_content(prompt, safety_settings=safety_settings)
+        response = gemini_model.generate_content(prompt, safety_settings=safety_settings)
         return response.text.strip()
     except Exception as e:
-        return f"⚠️ Ошибка при анализе: {e}"
+        return f"❌ AI error ({config.AI_PROVIDER}): {e}"

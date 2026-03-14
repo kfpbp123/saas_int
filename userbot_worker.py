@@ -125,11 +125,28 @@ async def simple_report(client, message):
     # ... логика репорта ...
     await message.delete()
 
-if __name__ == "__main__":
-    # Запуск планировщика: раз в 24 часа
-    scheduler.add_job(auto_scan_and_post, "interval", hours=24, next_run_time=datetime.now())
+async def main():
+    """Главная функция запуска."""
+    print("🚀 Запуск юзербота...")
+    await app.start()
+    print("✅ Юзербот авторизован и подключен.")
+    
+    # Добавляем задачу в планировщик после старта
+    # Первый запуск через 1 минуту после старта, затем каждые 24 часа
+    scheduler.add_job(auto_scan_and_post, "interval", hours=24, next_run_time=datetime.now() + timedelta(minutes=1))
     scheduler.start()
     
-    print("🚀 Юзербот интегрирован с основным ботом.")
     print(f"База данных: {database.DB_PATH}")
-    app.run()
+    print("🤖 Юзербот готов к работе. Ожидаю команды или время сканирования...")
+    
+    # Держим бота запущенным
+    await asyncio.Event().wait()
+
+if __name__ == "__main__":
+    try:
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(main())
+    except KeyboardInterrupt:
+        pass
+    finally:
+        app.stop()

@@ -13,6 +13,8 @@ MAIN_BOT_PATH = r"D:\TG_Bots\mine_bot_tg-main\mine_bot_tg-main\mine_bot_tg-main"
 sys.path.append(MAIN_BOT_PATH)
 
 import config
+import database
+import core
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -145,13 +147,27 @@ async def manual_scan(client, message):
 
 @app.on_message(filters.me & filters.command("test", prefixes="."))
 async def manual_test(client, message):
-    await message.edit_text("🧪 Тест: Пересылаю 1 мод с ожиданием...")
+    await message.edit_text("🧪 Тестирование: Ищу 1 свежий мод в белом списке...")
+    
+    # Сохраняем старый лимит и ставим 1 для теста
     global AUTO_POST_LIMIT
-    old = AUTO_POST_LIMIT
+    old_limit = AUTO_POST_LIMIT
     AUTO_POST_LIMIT = 1
-    await auto_scan_and_post()
-    AUTO_POST_LIMIT = old
-    await asyncio.sleep(2)
+    
+    try:
+        await auto_scan_and_post()
+        await message.edit_text("✅ Тест завершен. Проверьте очередь и Избранное.")
+    except Exception as e:
+        await message.edit_text(f"❌ Ошибка при тесте: {e}")
+    finally:
+        AUTO_POST_LIMIT = old_limit
+        await asyncio.sleep(3)
+        await message.delete()
+
+@app.on_message(filters.me & filters.command("report", prefixes="."))
+async def simple_report(client, message):
+    """Старая функция краткого отчета (для удобства)"""
+    await message.edit_text("Генерирую краткий отчет по новостям...")
     await message.delete()
 
 async def main():

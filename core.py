@@ -57,3 +57,18 @@ def show_stats(chat_id, channels_count, lang='uz'):
         channels=channels_count
     )
     bot.send_message(chat_id, text, parse_mode='HTML')
+
+def get_next_schedule_time():
+    """Рассчитывает время для следующего поста в умной очереди (+8 часов от последнего)."""
+    try:
+        last_time = database.get_last_scheduled_time()
+        interval = getattr(config, 'SMART_QUEUE_INTERVAL_HOURS', 8)
+        now = int(time.time())
+        
+        if not last_time or last_time < now:
+            return now + 3600 # Через час, если очередь пуста
+        
+        return last_time + (interval * 3600)
+    except Exception as e:
+        print(f"⚠️ Ошибка при расчете времени: {e}")
+        return int(time.time()) + 3600

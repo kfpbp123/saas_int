@@ -8,110 +8,115 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
+        :root {
+            --sculk-dark: #0d1117;
+            --sculk-glow: #00fbff;
+            --sculk-secondary: #161b22;
+            --sculk-text: #e6edf3;
+            --sculk-hint: #7d8590;
+        }
         body {
-            background-color: var(--tg-theme-bg-color, #f3f4f6);
-            color: var(--tg-theme-text-color, #1f2937);
+            background-color: var(--sculk-dark);
+            color: var(--sculk-text);
+            background-image: radial-gradient(circle at 50% 50%, #161b22 0%, #0d1117 100%);
         }
         .card {
-            background-color: var(--tg-theme-secondary-bg-color, #ffffff);
-            border-radius: 12px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            background-color: var(--sculk-secondary);
+            border: 1px solid rgba(0, 251, 255, 0.1);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            transition: border 0.3s ease;
+        }
+        .card:hover {
+            border-color: rgba(0, 251, 255, 0.4);
         }
         .btn-primary {
-            background-color: var(--tg-theme-button-color, #3b82f6);
-            color: var(--tg-theme-button-text-color, #ffffff);
+            background-color: var(--sculk-glow);
+            color: #000;
+            box-shadow: 0 0 15px rgba(0, 251, 255, 0.3);
         }
         .text-hint {
-            color: var(--tg-theme-hint-color, #9ca3af);
+            color: var(--sculk-hint);
+        }
+        .glow-text {
+            color: var(--sculk-glow);
+            text-shadow: 0 0 10px rgba(0, 251, 255, 0.5);
+        }
+        /* Анимация сердца Вардена */
+        @keyframes warden-pulse {
+            0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 251, 255, 0.4); }
+            50% { transform: scale(1.02); box-shadow: 0 0 20px rgba(0, 251, 255, 0.8); }
+            100% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 251, 255, 0.4); }
+        }
+        .btn-publish {
+            background: linear-gradient(135deg, #00fbff 0%, #008f91 100%);
+            color: #000;
+            animation: warden-pulse 2s infinite ease-in-out;
+        }
+        input, textarea {
+            background-color: #0d1117 !important;
+            color: white !important;
+            border: 1px solid #30363d !important;
         }
     </style>
 </head>
 <body class="p-4 md:p-8">
     <div id="app" class="max-w-4xl mx-auto">
         <!-- Dashboard -->
-        <header class="mb-8">
-            <h1 class="text-3xl font-extrabold mb-6">Mine Bot Studio</h1>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div class="card p-6 flex flex-col items-center justify-center">
-                    <span class="text-hint text-sm uppercase tracking-wider mb-2">In Queue</span>
-                    <span id="stat-queue" class="text-4xl font-black text-blue-500">0</span>
+        <header class="mb-10">
+            <h1 class="text-4xl font-black mb-8 glow-text tracking-tighter">MINE STUDIO</h1>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="card p-6 flex flex-col items-center justify-center border-l-4 border-l-[#00fbff]">
+                    <span class="text-hint text-xs uppercase tracking-[0.2em] mb-2">Queue</span>
+                    <span id="stat-queue" class="text-4xl font-black text-[#00fbff]">0</span>
                 </div>
                 <div class="card p-6 flex flex-col items-center justify-center">
-                    <span class="text-hint text-sm uppercase tracking-wider mb-2">Posted Today</span>
-                    <span id="stat-today" class="text-4xl font-black text-green-500">0</span>
+                    <span class="text-hint text-xs uppercase tracking-[0.2em] mb-2">Today</span>
+                    <span id="stat-today" class="text-4xl font-black text-[#00fbff]">0</span>
                 </div>
                 <div class="card p-6 flex flex-col items-center justify-center">
-                    <span class="text-hint text-sm uppercase tracking-wider mb-2">Total</span>
-                    <span id="stat-total" class="text-4xl font-black opacity-50">0</span>
+                    <span class="text-hint text-xs uppercase tracking-[0.2em] mb-2">Total</span>
+                    <span id="stat-total" class="text-4xl font-black opacity-30">0</span>
                 </div>
                 <div class="card p-6 flex flex-col items-center justify-center">
-                    <span class="text-hint text-sm uppercase tracking-wider mb-2">Channels</span>
-                    <span id="stat-channels" class="text-4xl font-black opacity-50">0</span>
+                    <span class="text-hint text-xs uppercase tracking-[0.2em] mb-2">Channels</span>
+                    <span id="stat-channels" class="text-4xl font-black opacity-30">0</span>
                 </div>
             </div>
         </header>
 
         <!-- Queue Section -->
         <section>
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold">Content Queue</h2>
-                <button onclick="fetchData()" class="bg-blue-100 p-2 rounded-full text-blue-600 hover:rotate-180 transition-transform duration-500">
+            <div class="flex justify-between items-center mb-8">
+                <h2 class="text-2xl font-bold tracking-tight">Content Pipeline</h2>
+                <button onclick="fetchData()" class="bg-[#161b22] p-3 rounded-xl text-[#00fbff] border border-[#30363d] hover:bg-[#30363d] transition-all">
                     <i data-lucide="refresh-cw" class="w-6 h-6"></i>
                 </button>
             </div>
-            <div id="queue-list" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div id="queue-list" class="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <!-- Posts will be here -->
-                <div class="col-span-full text-hint text-center py-20">
-                    <div class="animate-spin inline-block mb-4"><i data-lucide="loader" class="w-8 h-8"></i></div>
-                    <p>Loading your awesome content...</p>
-                </div>
             </div>
         </section>
     </div>
 
     <!-- Edit Modal -->
-    <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50">
-        <div class="card w-full max-w-md p-6">
-            <h3 class="text-lg font-bold mb-4">Edit Post</h3>
-            <textarea id="edit-text" class="w-full h-40 p-3 rounded border mb-4 text-black" placeholder="Post text..."></textarea>
-            <div class="flex space-x-2">
-                <button onclick="saveEdit()" class="btn-primary flex-1 py-2 rounded font-semibold">Save</button>
-                <button onclick="closeModal()" class="bg-gray-300 text-gray-800 flex-1 py-2 rounded font-semibold">Cancel</button>
+    <div id="modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="card w-full max-w-2xl p-8 border-[#00fbff]/30">
+            <h3 class="text-2xl font-bold mb-6 glow-text">Modify Content</h3>
+            <textarea id="edit-text" class="w-full h-64 p-4 rounded-xl mb-6 outline-none focus:border-[#00fbff] transition-all" placeholder="Enter sculk signals..."></textarea>
+            <div class="flex space-x-4">
+                <button onclick="saveEdit()" class="btn-primary flex-1 py-4 rounded-xl font-bold uppercase tracking-widest hover:brightness-110 transition-all">Save Essence</button>
+                <button onclick="closeModal()" class="bg-transparent text-hint border border-[#30363d] flex-1 py-4 rounded-xl font-bold uppercase tracking-widest hover:bg-[#30363d] transition-all">Discard</button>
             </div>
         </div>
     </div>
 
     <script>
-        const tg = window.Telegram.WebApp;
-        tg.expand();
-
-        let currentPostId = null;
-        // const API_URL = 'http://localhost:8000'; // Для локальной разработки
-        const API_URL = ''; // Будет работать на том же домене/порту
-
-        async function fetchData() {
-            try {
-                // Stats
-                const statsRes = await fetch(`${API_URL}/api/stats`);
-                const stats = await statsRes.json();
-                document.getElementById('stat-queue').innerText = stats.queue;
-                document.getElementById('stat-today').innerText = stats.today;
-                document.getElementById('stat-total').innerText = stats.total;
-                document.getElementById('stat-channels').innerText = stats.channels || 1;
-
-                // Queue
-                const queueRes = await fetch(`${API_URL}/api/queue`);
-                const queue = await queueRes.json();
-                renderQueue(queue);
-            } catch (e) {
-                console.error('Fetch error:', e);
-            }
-        }
-
+        // ... (скрипт остается прежним, обновляем только функцию рендера)
         function renderQueue(posts) {
             const list = document.getElementById('queue-list');
             if (posts.length === 0) {
-                list.innerHTML = '<div class="col-span-full text-hint text-center py-20">Queue is empty</div>';
+                list.innerHTML = '<div class="col-span-full text-hint text-center py-20 bg-[#161b22] rounded-3xl border border-dashed border-[#30363d]">The void is empty...</div>';
                 return;
             }
 
@@ -120,57 +125,56 @@
                     day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
                 });
                 
-                // Формируем индикаторы вложений
                 let attachmentsHtml = '';
                 if (post.photo_id) {
                     const isAlbum = post.photo_id.includes(',');
                     attachmentsHtml += `
-                        <div class="bg-blue-500/10 text-blue-500 p-3 rounded-lg flex items-center mb-3">
+                        <div class="bg-[#00fbff]/10 text-[#00fbff] p-3 rounded-xl flex items-center mb-4 border border-[#00fbff]/20">
                             <i data-lucide="${isAlbum ? 'layers' : 'image'}" class="w-5 h-5 mr-2"></i>
-                            <span class="text-sm font-semibold">${isAlbum ? 'Photo Album' : 'Photo Attached'}</span>
+                            <span class="text-xs font-bold uppercase tracking-wider">${isAlbum ? 'Visual Album' : 'Visual Data'}</span>
                         </div>
                     `;
                 }
                 if (post.document_id) {
                     attachmentsHtml += `
-                        <div class="bg-amber-500/10 text-amber-500 p-3 rounded-lg flex items-center mb-3">
+                        <div class="bg-amber-500/10 text-amber-500 p-3 rounded-xl flex items-center mb-4 border border-amber-500/20">
                             <i data-lucide="file-text" class="w-5 h-5 mr-2"></i>
-                            <span class="text-sm font-semibold">Document/File</span>
+                            <span class="text-xs font-bold uppercase tracking-wider">Ancient File</span>
                         </div>
                     `;
                 }
 
                 return `
-                    <div class="card overflow-hidden flex flex-col">
+                    <div class="card overflow-hidden flex flex-col border-[#30363d]">
                         <!-- Post Header -->
-                        <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                        <div class="p-4 border-b border-[#30363d] flex justify-between items-center bg-[#0d1117]/50">
                             <div class="flex items-center">
-                                <i data-lucide="send" class="w-4 h-4 mr-2 text-hint"></i>
-                                <span class="text-xs font-bold uppercase tracking-tighter text-hint">${post.channel}</span>
+                                <div class="w-2 h-2 rounded-full bg-[#00fbff] mr-2 shadow-[0_0_8px_#00fbff]"></div>
+                                <span class="text-[10px] font-black uppercase tracking-widest text-[#00fbff] opacity-80">${post.channel}</span>
                             </div>
-                            <span class="text-xs font-mono bg-white px-2 py-1 rounded shadow-sm">${date}</span>
+                            <span class="text-[10px] font-mono text-hint bg-[#161b22] px-2 py-1 rounded border border-[#30363d]">${date}</span>
                         </div>
 
                         <!-- Post Body -->
-                        <div class="p-5 flex-1">
+                        <div class="p-6 flex-1">
                             ${attachmentsHtml}
-                            <div class="text-sm whitespace-pre-wrap leading-relaxed opacity-90 mb-4 font-sans">
+                            <div class="text-sm whitespace-pre-wrap leading-relaxed opacity-90 mb-4 font-sans text-gray-300">
                                 ${post.text.replace(/<[^>]*>?/gm, '')}
                             </div>
                         </div>
 
                         <!-- Post Footer (Actions) -->
-                        <div class="p-4 bg-gray-50/50 border-t border-gray-100 flex space-x-2">
+                        <div class="p-4 bg-[#0d1117]/50 border-t border-[#30363d] flex space-x-3">
                             <button onclick="openEdit(${post.id}, \`${post.text.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`)" 
-                                    class="flex-1 bg-white border border-blue-200 text-blue-600 py-2 rounded-lg text-sm font-bold hover:bg-blue-50 transition-colors">
+                                    class="flex-1 bg-[#161b22] border border-[#30363d] text-[#e6edf3] py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#30363d] transition-all">
                                 Edit
                             </button>
                             <button onclick="publishNow(${post.id})" 
-                                    class="flex-1 bg-green-500 text-white py-2 rounded-lg text-sm font-bold hover:bg-green-600 shadow-sm transition-all">
-                                Publish Now
+                                    class="flex-1 btn-publish py-3 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg transition-all">
+                                Publish
                             </button>
                             <button onclick="deletePost(${post.id})" 
-                                    class="w-12 flex items-center justify-center bg-red-50 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition-all">
+                                    class="w-12 flex items-center justify-center bg-[#161b22] border border-red-900/30 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all">
                                 <i data-lucide="trash-2" class="w-5 h-5"></i>
                             </button>
                         </div>

@@ -14,9 +14,11 @@ import utils
 import markups
 import core
 import pytz
+import re
 from datetime import datetime, timedelta
 from bot_instance import bot
 from strings import MESSAGES, BUTTONS
+
 # --- WEB APP (TMA) ---
 try:
     from webapp.api import run_api
@@ -69,6 +71,9 @@ def send_welcome(message):
     text = MESSAGES[lang]['welcome']
     bot.send_message(message.chat.id, text, reply_markup=markups.get_main_menu(lang), parse_mode='HTML')
 
+# Кэш для объединения пересланных постов от админа
+admin_media_cache = {}
+
 @bot.message_handler(content_types=['text', 'photo', 'document', 'video', 'audio', 'voice'])
 def handle_text_photo_file(message):
     chat_id = message.chat.id
@@ -80,23 +85,48 @@ def handle_text_photo_file(message):
     if text: print(f"📩 [{chat_id}] Message: {text}")
 
     # --- АВТОМАТИЗАЦИЯ ДЛЯ ЮЗЕРБОТА (АДМИНА) ---
-    if user_id in config.ADMIN_IDS and message.chat.type == 'private':
-        # Если пришел файл (мод) от админа, автоматически ставим в очередь
-        if message.document or message.video or message.photo:
-            bot.send_message(chat_id, "🤖 Обнаружен пост от юзербота. Авто-генерация...")
+    if user_id in getattr(config, 'ADMIN_IDS', []) and message.chat.type == 'private':
+        # Если пришел текст или фото (без документа), сохраняем в кэш
+        if message.photo or (message.content_type == 'text' and not message.document):
+            admin_media_cache[user_id] = {
+                'text': text,
+                'photo_id': message.photo[-1].file_id if message.photo else None,
+                'time': time.time()
+            }
+            print("🖼️/📝 Данные админа сохранены в кэш")
+
+        # Если пришел файл (мод), используем данные из кэша
+        if (message.document or message.video) and message.chat.type == 'private':
+            bot.send_message(chat_id, "🤖 Мод получен. Генерирую пост...")
             
-            # Логика авто-постинга
+            cache = admin_media_cache.get(user_id, {})
+            cache_text = cache.get('text', "")
+            cache_photo = cache.get('photo_id')
+            cache_time = cache.get('time', 0)
+            
+            final_text = text or cache_text or "Minecraft Mod"
+            final_photo = (message.photo[-1].file_id if message.photo else None) or cache_photo
+            
+            if time.time() - cache_time > 300: # Кэш живет 5 минут
+                final_photo = None if not message.photo else final_photo
+
             try:
                 # Генерируем текст через ИИ
-                ai_text = ai_generator.generate_post(text or "Описание мода", lang)
+                ai_text = ai_generator.generate_post(final_text, lang)
                 
-                # Сохраняем файл
-                file_id = message.document.file_id if message.document else (message.video.file_id if message.video else message.photo[-1].file_id)
-                file_type = message.content_type
+                # Файл (бот сам получает НОВЫЙ file_id)
+                doc_id = message.document.file_id if message.document else message.video.file_id
                 
-                # Добавляем в очередь
-                database.add_pending_post(chat_id, ai_text, file_id, file_type, int(time.time()))
-                bot.send_message(chat_id, "✅ Пост успешно добавлен в умную очередь!")
+                # Добавляем в очередь (используем расчет времени)
+                last_time = database.get_last_scheduled_time()
+                now = int(time.time())
+                interval = config.SMART_QUEUE_INTERVAL_HOURS * 3600
+                new_time = (last_time + interval) if (last_time and last_time > now) else (now + 3600)
+                
+                database.add_to_queue(final_photo, ai_text, doc_id, config.DEFAULT_CHANNEL, new_time)
+                bot.send_message(chat_id, f"✅ Пост добавлен в очередь на {datetime.fromtimestamp(new_time).strftime('%d.%m %H:%M')}")
+                
+                if user_id in admin_media_cache: del admin_media_cache[user_id]
                 return
             except Exception as e:
                 bot.send_message(chat_id, f"❌ Ошибка авто-постинга: {e}")

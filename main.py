@@ -86,7 +86,8 @@ def handle_text_photo_file(message):
 
     # --- АВТОМАТИЗАЦИЯ ДЛЯ ЮЗЕРБОТА (АДМИНА) ---
     if user_id in getattr(config, 'ADMIN_IDS', []) and message.chat.type == 'private':
-        # Если пришел текст или фото (без документа), сохраняем в кэш
+        
+        # 1. Кэширование фото/текста
         if message.photo or (message.content_type == 'text' and not message.document):
             admin_media_cache[user_id] = {
                 'text': text,
@@ -95,9 +96,16 @@ def handle_text_photo_file(message):
             }
             print("🖼️/📝 Данные админа сохранены в кэш")
 
-        # Если пришел файл (мод), используем данные из кэша
+        # 2. Обработка файла (мода)
         if (message.document or message.video) and message.chat.type == 'private':
-            bot.send_message(chat_id, "🤖 Мод получен. Генерирую пост...")
+            doc_id = message.document.file_id if message.document else message.video.file_id
+            
+            # ПРОВЕРКА НА ДУБЛИКАТ
+            if core.database.is_duplicate(doc_id):
+                bot.send_message(chat_id, "⏩ Мод уже есть в базе, пропускаю.")
+                return
+
+            bot.send_message(chat_id, "🤖 Мод получен. Обработка и водяной знак...")
             
             cache = admin_media_cache.get(user_id, {})
             cache_text = cache.get('text', "")
@@ -105,26 +113,45 @@ def handle_text_photo_file(message):
             cache_time = cache.get('time', 0)
             
             final_text = text or cache_text or "Minecraft Mod"
-            final_photo = (message.photo[-1].file_id if message.photo else None) or cache_photo
+            raw_photo = (message.photo[-1].file_id if message.photo else None) or cache_photo
             
-            if time.time() - cache_time > 300: # Кэш живет 5 минут
-                final_photo = None if not message.photo else final_photo
+            if time.time() - cache_time > 600: raw_photo = None # Кэш 10 мин
 
             try:
                 # Генерируем текст через ИИ
                 ai_text = ai_generator.generate_post(final_text, lang)
                 
-                # Файл (бот сам получает НОВЫЙ file_id)
-                doc_id = message.document.file_id if message.document else message.video.file_id
-                
-                # Добавляем в очередь (используем расчет времени)
-                last_time = database.get_last_scheduled_time()
-                now = int(time.time())
-                interval = config.SMART_QUEUE_INTERVAL_HOURS * 3600
-                new_time = (last_time + interval) if (last_time and last_time > now) else (now + 3600)
-                
-                database.add_to_queue(final_photo, ai_text, doc_id, config.DEFAULT_CHANNEL, new_time)
-                bot.send_message(chat_id, f"✅ Пост добавлен в очередь на {datetime.fromtimestamp(new_time).strftime('%d.%m %H:%M')}")
+                # Если ИИ отклонил пост
+                if "REJECT" in ai_text.upper():
+                    bot.send_message(chat_id, "⏩ Пост отклонен ИИ как нецелевой.")
+                    return
+
+                # НАЛОЖЕНИЕ ВОДЯНОГО ЗНАКА
+                final_photo_id = None
+                if raw_photo:
+                    try:
+                        temp_in, temp_out = f"auto_in_{chat_id}.jpg", f"auto_out_{chat_id}.jpg"
+                        file_info = bot.get_file(raw_photo)
+                        downloaded_file = bot.download_file(file_info.file_path)
+                        with open(temp_in, 'wb') as f: f.write(downloaded_file)
+                        
+                        watermarker.add_watermark(temp_in, temp_out)
+                        
+                        with open(temp_out if os.path.exists(temp_out) else temp_in, 'rb') as f:
+                            sent_photo = bot.send_photo(chat_id, f, caption="🎨 Накладываю водяной знак...")
+                            final_photo_id = sent_photo.photo[-1].file_id
+                            bot.delete_message(chat_id, sent_photo.message_id)
+                            
+                        if os.path.exists(temp_in): os.remove(temp_in)
+                        if os.path.exists(temp_out): os.remove(temp_out)
+                    except Exception as we:
+                        print(f"⚠️ Ошибка водяного знака: {we}")
+                        final_photo_id = raw_photo
+
+                # Добавляем в очередь
+                new_time = core.get_next_schedule_time()
+                database.add_to_queue(final_photo_id, ai_text, doc_id, config.DEFAULT_CHANNEL, new_time)
+                bot.send_message(chat_id, f"✅ Готово! Пост с водяным знаком в очереди на {datetime.fromtimestamp(new_time).strftime('%d.%m %H:%M')}")
                 
                 if user_id in admin_media_cache: del admin_media_cache[user_id]
                 return

@@ -74,10 +74,32 @@ def handle_text_photo_file(message):
     chat_id = message.chat.id
     user_id = message.from_user.id
     lang = get_user_lang(user_id)
-    text = message.text if message.content_type == 'text' else None
+    text = message.text if message.content_type == 'text' else message.caption
 
     # DEBUG LOG
     if text: print(f"📩 [{chat_id}] Message: {text}")
+
+    # --- АВТОМАТИЗАЦИЯ ДЛЯ ЮЗЕРБОТА (АДМИНА) ---
+    if user_id in config.ADMIN_IDS and message.chat.type == 'private':
+        # Если пришел файл (мод) от админа, автоматически ставим в очередь
+        if message.document or message.video or message.photo:
+            bot.send_message(chat_id, "🤖 Обнаружен пост от юзербота. Авто-генерация...")
+            
+            # Логика авто-постинга
+            try:
+                # Генерируем текст через ИИ
+                ai_text = ai_generator.generate_content(text or "Описание мода", lang)
+                
+                # Сохраняем файл
+                file_id = message.document.file_id if message.document else (message.video.file_id if message.video else message.photo[-1].file_id)
+                file_type = message.content_type
+                
+                # Добавляем в очередь
+                database.add_pending_post(chat_id, ai_text, file_id, file_type, int(time.time()))
+                bot.send_message(chat_id, "✅ Пост успешно добавлен в умную очередь!")
+                return
+            except Exception as e:
+                bot.send_message(chat_id, f"❌ Ошибка авто-постинга: {e}")
 
     if message.chat.type in ['group', 'supergroup']:
         if text and not text.startswith('/'):

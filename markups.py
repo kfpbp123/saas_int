@@ -5,8 +5,14 @@ from strings import BUTTONS
 def get_main_menu(lang='uz'):
     b = BUTTONS.get(lang, BUTTONS['uz'])
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    # Добавляем Mini App как большую кнопку в начало
-    markup.add(KeyboardButton("📱 Mini App", web_app=WebAppInfo(url=config.WEBAPP_URL)))
+    
+    # Добавляем Mini App как большую кнопку в начало (только если URL настроен)
+    if config.WEBAPP_URL and config.WEBAPP_URL.startswith('http'):
+        try:
+            markup.add(KeyboardButton("📱 Mini App", web_app=WebAppInfo(url=config.WEBAPP_URL)))
+        except Exception as e:
+            print(f"⚠️ Error creating Mini App button: {e}")
+            
     markup.add(KeyboardButton(b['create']), KeyboardButton(b['ai_chat']))
     markup.add(KeyboardButton(b['queue']), KeyboardButton(b['lang']))
     markup.add(KeyboardButton(b['channels']), KeyboardButton(b['stats']))

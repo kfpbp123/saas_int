@@ -103,6 +103,16 @@ def delete_from_queue(post_id):
     conn.commit()
     conn.close()
 
+def is_duplicate(document_id):
+    """Проверяет, есть ли такой файл уже в базе (в очереди или опубликован)."""
+    if not document_id: return False
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT 1 FROM queue WHERE document_id = ?", (document_id,))
+    res = c.fetchone()
+    conn.close()
+    return res is not None
+
 def get_last_scheduled_time():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()

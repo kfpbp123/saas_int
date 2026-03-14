@@ -101,7 +101,7 @@ def handle_text_photo_file(message):
             doc_id = message.document.file_id if message.document else message.video.file_id
             
             # ПРОВЕРКА НА ДУБЛИКАТ
-            if core.database.is_duplicate(doc_id):
+            if database.is_duplicate(doc_id):
                 bot.send_message(chat_id, "⏩ Мод уже есть в базе, пропускаю.")
                 return
 

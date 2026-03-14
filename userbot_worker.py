@@ -80,21 +80,31 @@ def is_target_channel(chat):
         return True
     return False
 
-async def process_and_queue_mod(message, channel_username):
+async def process_and_queue_mod(message, channel_username, companion_message=None):
     """Обрабатывает сообщение, генерирует пост и кладет в базу данных основного бота."""
     try:
         # СТРОГОЕ УСЛОВИЕ: Должен быть файл (мод)
         if not (message.document or message.video):
             return False
 
-        # ПРОВЕРКА НА РЕКЛАМУ ПО КЛЮЧЕВЫМ СЛОВАМ
-        raw_text = (message.text or message.caption or "").lower()
-        if any(ad in raw_text for ad in AD_KEYWORDS):
-            print(f"⏩ Пропуск: Пост из @{channel_username} похож на рекламу.")
-            return False
-
+        # Данные из сообщения с файлом
         doc_id = message.document.file_id if message.document else message.video.file_id
         file_name = message.document.file_name if message.document else "mod_file"
+        text = message.text or message.caption or ""
+        photo_id = message.photo.file_id if message.photo else None
+
+        # ЕСЛИ ЕСТЬ СОПУТСТВУЮЩЕЕ СООБЩЕНИЕ (фото + описание выше)
+        if companion_message:
+            if not text:
+                text = companion_message.text or companion_message.caption or ""
+            if not photo_id:
+                photo_id = companion_message.photo.file_id if companion_message.photo else None
+
+        # ПРОВЕРКА НА РЕКЛАМУ ПО КЛЮЧЕВЫМ СЛОВАМ
+        raw_text_lower = text.lower()
+        if any(ad in raw_text_lower for ad in AD_KEYWORDS):
+            print(f"⏩ Пропуск: Пост из @{channel_username} похож на рекламу.")
+            return False
         
         # Проверяем на дубликат по файлу
         if is_duplicate(doc_id):
@@ -102,7 +112,7 @@ async def process_and_queue_mod(message, channel_username):
             return False
 
         # Формируем расширенный ввод для ИИ (текст + имя файла)
-        ai_input = f"Fayl nomi: {file_name}\nMatn: {raw_text}"
+        ai_input = f"Fayl nomi: {file_name}\nMatn: {text}"
         
         # 1. Генерируем текст в стиле основного бота
         ai_text = ai_generator.generate_post(ai_input, DEFAULT_LANG)
@@ -112,13 +122,10 @@ async def process_and_queue_mod(message, channel_username):
             print(f"⏩ Пропуск: ИИ определил пост из @{channel_username} как мусор/рекламу.")
             return False
             
-        # 2. Собираем медиа
-        photo_id = message.photo.file_id if message.photo else None
-            
-        # 3. Рассчитываем время публикации
+        # 2. Рассчитываем время публикации
         scheduled_time = get_next_schedule_time()
         
-        # 4. Сохраняем напрямую в БД основного бота
+        # 3. Сохраняем напрямую в БД основного бота
         database.add_to_queue(
             photo_id=photo_id,
             text=ai_text,
@@ -127,13 +134,13 @@ async def process_and_queue_mod(message, channel_username):
             scheduled_time=scheduled_time
         )
         
-        # 5. Уведомление в Избранное
+        # 4. Уведомление в Избранное
         readable_time = datetime.fromtimestamp(scheduled_time).strftime('%d.%m %H:%M')
         report = (
             f"🤖 **Авто-постинг: Новый мод!**\n\n"
             f"📁 **Источник:** @{channel_username}\n"
             f"📅 **Дата публикации:** `{readable_time}`\n"
-            f"✅ **Статус:** Добавлено в очередь."
+            f"✅ **Статус:** Текст и медиа объединены."
         )
         await app.send_message("me", report)
         return True
@@ -143,7 +150,7 @@ async def process_and_queue_mod(message, channel_username):
 
 async def auto_scan_and_post():
     """Раз в 24 часа ищет 6 новых модов и ставит их в очередь."""
-    print(f"[{datetime.now()}] Старт авто-сканирования (СТРОГИЙ ФИЛЬТР)...")
+    print(f"[{datetime.now()}] Старт авто-сканирования (УМНЫЙ ПОИСК МЕДИА)...")
     mods_found = 0
     
     async for dialog in app.get_dialogs():
@@ -154,14 +161,32 @@ async def auto_scan_and_post():
             username = dialog.chat.username or "Private_Channel"
             print(f"🔎 Сканирую: @{username}")
             
-            # Ищем свежие посты за последние 48 часов
-            async for message in app.get_chat_history(dialog.chat.id, limit=30):
+            # Получаем историю сообщений
+            messages = []
+            async for m in app.get_chat_history(dialog.chat.id, limit=40):
+                messages.append(m)
+            
+            # Итерируем по сообщениям, ища файлы
+            for i in range(len(messages)):
                 if mods_found >= AUTO_POST_LIMIT:
                     break
                 
+                message = messages[i]
+                
                 # Нам нужны ТОЛЬКО посты с документами (файлами)
                 if (message.document or message.video) and (message.date > datetime.now() - timedelta(days=2)):
-                    success = await process_and_queue_mod(message, username)
+                    
+                    # ПРОВЕРЯЕМ СООБЩЕНИЕ ВЫШЕ (companion message)
+                    companion = None
+                    # В истории Pyrogram сообщения идут от новых к старым, 
+                    # поэтому сообщение ВЫШЕ (отправленное раньше) будет иметь индекс i+1
+                    if i + 1 < len(messages):
+                        potential_companion = messages[i+1]
+                        # Если разница во времени меньше 2 минут, считаем это одним постом
+                        if abs((message.date - potential_companion.date).total_seconds()) < 120:
+                            companion = potential_companion
+                    
+                    success = await process_and_queue_mod(message, username, companion)
                     if success:
                         mods_found += 1
                         await asyncio.sleep(5) 

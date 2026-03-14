@@ -176,25 +176,24 @@ async def manual_scan(client, message):
 
 @app.on_message(filters.me & filters.command("test", prefixes="."))
 async def manual_test(client, message):
-    """Тестовое создание поста. Если есть реплай - берет его, если нет - создает заглушку."""
-    target = message.reply_to_message if message.reply_to_message else message
+    """Тестовый запуск: ищет ровно 1 мод в белом списке и создает пост."""
+    await message.edit_text("🧪 Тестирование: Ищу 1 свежий мод в белом списке...")
     
-    await message.edit_text("🧪 Тестовый запуск: Обработка сообщения...")
+    # Сохраняем старый лимит и ставим 1 для теста
+    global AUTO_POST_LIMIT
+    old_limit = AUTO_POST_LIMIT
+    AUTO_POST_LIMIT = 1
     
-    # Если в сообщении нет текста и это не реплай с файлом, добавим текст для ИИ
-    if not target.text and not target.caption and not target.document:
-        test_text = "Nomi: SuperJump.jar\nMatn: Bu mod Minecraft 1.21 uchun balandlikka sakrash imkonini beradi."
-        # Имитируем сообщение с текстом
-        target.text = test_text
-
-    success = await process_and_queue_mod(target, "Test_Manual")
-    
-    if success:
-        await message.edit_text("✅ Тестовый пост успешно создан и добавлен в очередь!")
+    try:
+        await auto_scan_and_post()
+        await message.edit_text("✅ Тест завершен. Проверьте очередь и Избранное.")
+    except Exception as e:
+        await message.edit_text(f"❌ Ошибка при тесте: {e}")
+    finally:
+        # Возвращаем лимит на место
+        AUTO_POST_LIMIT = old_limit
         await asyncio.sleep(3)
         await message.delete()
-    else:
-        await message.edit_text("❌ Ошибка при создании тестового поста. Проверьте логи.")
 
 @app.on_message(filters.me & filters.command("report", prefixes="."))
 async def simple_report(client, message):

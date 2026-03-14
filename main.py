@@ -88,7 +88,7 @@ def handle_text_photo_file(message):
             # Логика авто-постинга
             try:
                 # Генерируем текст через ИИ
-                ai_text = ai_generator.generate_content(text or "Описание мода", lang)
+                ai_text = ai_generator.generate_post(text or "Описание мода", lang)
                 
                 # Сохраняем файл
                 file_id = message.document.file_id if message.document else (message.video.file_id if message.video else message.photo[-1].file_id)

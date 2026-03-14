@@ -45,7 +45,7 @@ async def process_and_queue_mod(message, channel_username):
         text = message.text or message.caption or "Minecraft Mod"
         
         # 1. Генерируем текст в стиле основного бота
-        ai_text = ai_generator.generate_content(text, DEFAULT_LANG)
+        ai_text = ai_generator.generate_post(text, DEFAULT_LANG)
         
         # 2. Собираем медиа
         photo_id = None

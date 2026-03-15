@@ -6,6 +6,7 @@ import database
 import config
 import core
 import utils
+import comments_analyzer
 import uvicorn
 import os
 from pydantic import BaseModel
@@ -86,6 +87,11 @@ async def set_active_channel(channel: str, user_id: int = 0):
     uid = user_id or getattr(config, 'ADMIN_IDS', [0])[0]
     database.set_user_setting(uid, channel=channel)
     return {"status": "ok"}
+
+@app.get("/api/ai/analyze")
+async def get_ai_analysis():
+    report = comments_analyzer.analyze_comments()
+    return {"report": report}
 
 def run_api():
     port = int(os.getenv("PORT", 8000))

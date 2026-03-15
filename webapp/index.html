@@ -64,8 +64,9 @@
     <div id="app" class="max-w-5xl mx-auto">
         <!-- Navigation -->
         <nav class="flex justify-around mb-10 bg-black/30 backdrop-blur-md sticky top-0 z-40 p-2 rounded-2xl border border-white/5">
-            <button onclick="switchTab('dashboard')" id="tab-dashboard" class="px-6 py-3 font-black uppercase tracking-widest text-xs tab-active transition-all">Studio</button>
-            <button onclick="switchTab('channels')" id="tab-channels" class="px-6 py-3 font-black uppercase tracking-widest text-xs text-hint transition-all">Channels</button>
+            <button onclick="switchTab('dashboard')" id="tab-dashboard" class="px-4 py-3 font-black uppercase tracking-widest text-[10px] tab-active transition-all">Studio</button>
+            <button onclick="switchTab('ai')" id="tab-ai" class="px-4 py-3 font-black uppercase tracking-widest text-[10px] text-hint transition-all">AI Insights</button>
+            <button onclick="switchTab('channels')" id="tab-channels" class="px-4 py-3 font-black uppercase tracking-widest text-[10px] text-hint transition-all">Network</button>
         </nav>
 
         <!-- DASHBOARD SECTION -->
@@ -105,11 +106,17 @@
             </section>
         </div>
 
-        <!-- CHANNELS SECTION -->
-        <div id="section-channels" class="hidden-section">
-            <h2 class="text-4xl font-black mb-10 glow-text tracking-tighter uppercase italic">Network Management</h2>
-            <div id="channels-list" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Channels will be here -->
+        <!-- AI SECTION -->
+        <div id="section-ai" class="hidden-section">
+            <h2 class="text-4xl font-black mb-10 glow-text tracking-tighter uppercase italic">AI Deep Analysis</h2>
+            <div class="card p-8 min-h-[400px] flex flex-col">
+                <div id="ai-report" class="flex-1 text-sm whitespace-pre-wrap leading-relaxed font-sans text-gray-300 italic mb-8">
+                    <!-- AI Report will be here -->
+                    <div class="flex items-center justify-center h-full opacity-30 tracking-[0.3em] font-black">Link Pending...</div>
+                </div>
+                <button id="btn-ai-analyze" onclick="fetchAI()" class="w-full btn-primary py-5 rounded-2xl font-black uppercase tracking-widest shadow-2xl active:scale-95 transition-all flex items-center justify-center">
+                    <i data-lucide="brain-circuit" class="w-6 h-6 mr-3"></i> <span>Initiate Neural Scan</span>
+                </button>
             </div>
         </div>
     </div>
@@ -152,14 +159,43 @@
         function switchTab(tab) {
             document.getElementById('section-dashboard').classList.add('hidden-section');
             document.getElementById('section-channels').classList.add('hidden-section');
-            document.getElementById('tab-dashboard').classList.remove('tab-active', 'text-hint');
-            document.getElementById('tab-channels').classList.remove('tab-active', 'text-hint');
+            document.getElementById('section-ai').classList.add('hidden-section');
+            
+            document.getElementById('tab-dashboard').classList.remove('tab-active');
+            document.getElementById('tab-channels').classList.remove('tab-active');
+            document.getElementById('tab-ai').classList.remove('tab-active');
+            
+            document.getElementById('tab-dashboard').classList.add('text-hint');
+            document.getElementById('tab-channels').classList.add('text-hint');
+            document.getElementById('tab-ai').classList.add('text-hint');
             
             document.getElementById(`section-${tab}`).classList.remove('hidden-section');
             document.getElementById(`tab-${tab}`).classList.add('tab-active');
+            document.getElementById(`tab-${tab}`).classList.remove('text-hint');
             
             if (tab === 'channels') fetchChannels();
-            else fetchData();
+            else if (tab === 'dashboard') fetchData();
+        }
+
+        async function fetchAI() {
+            const btn = document.getElementById('btn-ai-analyze');
+            const reportDiv = document.getElementById('ai-report');
+            
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="refresh-cw" class="w-6 h-6 mr-3 animate-spin"></i> TRANSMITTING...';
+            reportDiv.innerHTML = '<div class="flex items-center justify-center h-full opacity-50"><span class="animate-pulse tracking-[0.5em] font-black italic">SCANNING SECTOR...</span></div>';
+            
+            try {
+                const res = await fetch(`${API_URL}/api/ai/analyze`);
+                const data = await res.json();
+                reportDiv.innerHTML = data.report.replace(/\n/g, '<br>');
+            } catch (e) { 
+                reportDiv.innerHTML = '❌ Neural Link Failed.';
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="brain-circuit" class="w-6 h-6 mr-3"></i> <span>Initiate Neural Scan</span>';
+                lucide.createIcons();
+            }
         }
 
         async function fetchData() {

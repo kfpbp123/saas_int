@@ -12,9 +12,8 @@ def get_main_menu(lang='uz'):
             markup.add(KeyboardButton("🚀 OPEN STUDIO", web_app=WebAppInfo(url=config.WEBAPP_URL)))
         except: pass
             
-    markup.add(KeyboardButton(b['create']), KeyboardButton(b['ai_chat']))
-    markup.add(KeyboardButton(b['lang']), KeyboardButton(b['settings']))
-    markup.add(KeyboardButton(b['analyze']), KeyboardButton(b['trends']))
+    markup.add(KeyboardButton(b['create']), KeyboardButton(b['lang']))
+    markup.add(KeyboardButton(b['settings']), KeyboardButton(b['analyze']))
     return markup
 
 def get_settings_menu(lang='uz', auto_post=False):

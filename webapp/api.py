@@ -8,12 +8,18 @@ import core
 import utils
 import comments_analyzer
 import web_searcher
+import ai_generator
 import uvicorn
 import os
 from pydantic import BaseModel
 from typing import Optional
 
 app = FastAPI(title="Mine Bot TMA API")
+
+class ChatRequest(BaseModel):
+    message: str
+    user_id: int = 0
+    lang: str = 'uz'
 
 # Разрешаем CORS
 app.add_middleware(
@@ -98,6 +104,29 @@ async def get_ai_analysis():
 async def get_web_trends():
     trends = web_searcher.get_all_trends()
     return {"trends": trends}
+
+@app.post("/api/ai/chat")
+async def ai_chat_handler(req: ChatRequest):
+    stats = database.get_stats()
+    channel = utils.get_active_channel(req.user_id)
+    comments = database.get_all_comments()[-20:]
+    comm_text = "\n".join([f"- {c[0]}: {c[1]}" for c in comments])
+    
+    context = f"""
+    [SYSTEM CONTEXT]
+    You are an AI assistant for the Minecraft Telegram channel admin.
+    Current Channel: {channel}
+    Total Posts: {stats['total']}
+    Pending in Queue: {stats['queue']}
+    Focus: Minecraft Bedrock Edition (PE), Addons, Mobile.
+    Recent User Comments:
+    {comm_text or "No recent comments"}
+    
+    User Question: {req.message}
+    """
+    
+    response = ai_generator.chat_with_ai(context, req.lang)
+    return {"response": response}
 
 def run_api():
     port = int(os.getenv("PORT", 8000))

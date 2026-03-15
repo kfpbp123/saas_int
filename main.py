@@ -85,7 +85,10 @@ def handle_text_photo_file(message):
     if text: print(f"📩 [{chat_id}] Message: {text}")
 
     # --- АВТОМАТИЗАЦИЯ ДЛЯ ЮЗЕРБОТА (АДМИНА) ---
-    if user_id in getattr(config, 'ADMIN_IDS', []) and message.chat.type == 'private':
+    state_data = user_states.get(chat_id)
+    is_creating = state_data and state_data.get('state') == 'creating_post'
+
+    if user_id in getattr(config, 'ADMIN_IDS', []) and message.chat.type == 'private' and not is_creating:
         
         # 1. Кэширование фото/текста
         if message.photo or (message.content_type == 'text' and not message.document):
@@ -99,9 +102,10 @@ def handle_text_photo_file(message):
         # 2. Обработка файла (мода)
         if (message.document or message.video) and message.chat.type == 'private':
             doc_id = message.document.file_id if message.document else message.video.file_id
+            file_unique_id = message.document.file_unique_id if message.document else message.video.file_unique_id
             
             # ПРОВЕРКА НА ДУБЛИКАТ
-            if database.is_duplicate(doc_id):
+            if database.is_duplicate(file_unique_id):
                 bot.send_message(chat_id, "⏩ Мод уже есть в базе, пропускаю.")
                 return
 
@@ -112,18 +116,27 @@ def handle_text_photo_file(message):
             cache_photo = cache.get('photo_id')
             cache_time = cache.get('time', 0)
             
-            final_text = text or cache_text or "Minecraft Mod"
+            # Если в кэше пусто, попробуем взять текст из самого сообщения с файлом
+            final_text = text or cache_text
+            if not final_text:
+                # Если текста совсем нет, попробуем использовать имя файла
+                file_name = message.document.file_name if message.document else "Minecraft Mod"
+                final_text = f"Mod: {file_name}"
+                
             raw_photo = (message.photo[-1].file_id if message.photo else None) or cache_photo
             
-            if time.time() - cache_time > 600: raw_photo = None # Кэш 10 мин
+            # Кэш фото/текста действителен 10 минут
+            if time.time() - cache_time > 600:
+                raw_photo = cache_photo if cache_photo else None
+                if not text and cache_text: final_text = cache_text
 
             try:
                 # Генерируем текст через ИИ
                 ai_text = ai_generator.generate_post(final_text, lang)
                 
-                # Если ИИ отклонил пост
-                if "REJECT" in ai_text.upper():
-                    bot.send_message(chat_id, "⏩ Пост отклонен ИИ как нецелевой.")
+                # Если ИИ отклонил пост или вернул ошибку
+                if not ai_text or "REJECT" in ai_text.upper() or "ERROR" in ai_text.upper():
+                    bot.send_message(chat_id, f"⏩ Пост отклонен или ошибка ИИ: {ai_text}")
                     return
 
                 # НАЛОЖЕНИЕ ВОДЯНОГО ЗНАКА
@@ -150,7 +163,7 @@ def handle_text_photo_file(message):
 
                 # Добавляем в очередь
                 new_time = core.get_next_schedule_time()
-                database.add_to_queue(final_photo_id, ai_text, doc_id, config.DEFAULT_CHANNEL, new_time)
+                database.add_to_queue(final_photo_id, ai_text, doc_id, config.DEFAULT_CHANNEL, new_time, file_unique_id)
                 bot.send_message(chat_id, f"✅ Готово! Пост с водяным знаком в очереди на {datetime.fromtimestamp(new_time).strftime('%d.%m %H:%M')}")
                 
                 if user_id in admin_media_cache: del admin_media_cache[user_id]
@@ -161,6 +174,7 @@ def handle_text_photo_file(message):
     if message.chat.type in ['group', 'supergroup']:
         if text and not text.startswith('/'):
             database.save_comment(message.from_user.first_name, text, int(time.time()))
+            print(f"💬 Сохранен комментарий от {message.from_user.first_name}: {text[:50]}...")
         return
 
     # СРАЗУ ПРОВЕРЯЕМ ОТМЕНУ (ВЫСШИЙ ПРИОРИТЕТ)
@@ -189,21 +203,34 @@ def handle_text_photo_file(message):
                 return
 
     state_data = user_states.get(chat_id)
-    if state_data and state_data.get('state') == 'ai_chat':
-        bot.send_chat_action(chat_id, 'typing')
-        stats = database.get_stats()
-        channel = utils.get_active_channel(user_id)
-        comments = database.get_all_comments()[-10:]
-        comm_text = "\n".join([f"- {c[0]}: {c[1]}" for c in comments])
-        context_msg = f"[Context: Bot for @lazikosmods. Queue: {stats['queue']} posts. Channel: {channel}. Comments:\n{comm_text or 'No'}] {message.text}"
-        response = ai_generator.chat_with_ai(context_msg, lang)
-        bot.send_message(chat_id, f"🤖 <b>AI:</b>\n\n{response}", parse_mode='HTML', reply_markup=markups.get_cancel_markup(lang))
-        return
+    if state_data:
+        if state_data.get('state') == 'ai_chat':
+            bot.send_chat_action(chat_id, 'typing')
+            stats = database.get_stats()
+            channel = utils.get_active_channel(user_id)
+            comments = database.get_all_comments()[-30:] # Берем больше
+            comm_text = "\n".join([f"- {c[0]}: {c[1]}" for c in comments])
+            context_msg = f"[Context: Bot for @lazikosmods. Queue: {stats['queue']} posts. Channel: {channel}. Comments:\n{comm_text or 'No'}] {message.text}"
+            response = ai_generator.chat_with_ai(context_msg, lang)
+            bot.send_message(chat_id, f"🤖 <b>AI:</b>\n\n{response}", parse_mode='HTML', reply_markup=markups.get_cancel_markup(lang))
+            return
+        elif state_data.get('state') == 'creating_post':
+            user_states[chat_id] = None # Сбрасываем
+            bot.send_chat_action(chat_id, 'typing')
+            if not message.media_group_id:
+                start_generation(chat_id, user_id, text, (message.photo[-1].file_id if message.photo else None))
+            elif message.media_group_id not in album_cache:
+                album_cache[message.media_group_id] = []
+                threading.Timer(2.0, process_album_immediate, args=[message.media_group_id, chat_id, user_id]).start()
+            if message.media_group_id: album_cache[message.media_group_id].append(message)
+            return
 
     if message.content_type == 'text':
         text = message.text
         if text in [BUTTONS['uz']['create'], BUTTONS['ru']['create'], BUTTONS['en']['create']]:
+            user_states[chat_id] = {'state': 'creating_post'}
             bot.send_message(chat_id, "📬 <b>Link / Info?</b>", parse_mode='HTML')
+            return
         elif text in [BUTTONS['uz']['ai_chat'], BUTTONS['ru']['ai_chat'], BUTTONS['en']['ai_chat']]:
             user_states[chat_id] = {'state': 'ai_chat'}
             bot.send_message(chat_id, MESSAGES[lang]['ai_chat_active'], reply_markup=markups.get_cancel_markup(lang), parse_mode='HTML')

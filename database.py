@@ -18,7 +18,14 @@ def init_db():
                   document_id TEXT,
                   channel_id TEXT,
                   scheduled_time INTEGER,
-                  status TEXT DEFAULT 'pending')''')
+                  status TEXT DEFAULT 'pending',
+                  file_unique_id TEXT)''')
+    
+    # Пытаемся добавить колонку, если её нет (для существующих БД)
+    try:
+        c.execute("ALTER TABLE queue ADD COLUMN file_unique_id TEXT")
+    except:
+        pass
     
     # Таблица комментариев для анализа
     c.execute('''CREATE TABLE IF NOT EXISTS comments
@@ -47,11 +54,11 @@ def init_db():
 
 # --- ФУНКЦИИ ОЧЕРЕДИ ---
 
-def add_to_queue(photo_id, text, document_id=None, channel_id=None, scheduled_time=None):
+def add_to_queue(photo_id, text, document_id=None, channel_id=None, scheduled_time=None, file_unique_id=None):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("INSERT INTO queue (photo_id, text, document_id, channel_id, scheduled_time, status) VALUES (?, ?, ?, ?, ?, 'pending')", 
-              (photo_id, text, document_id, channel_id, scheduled_time))
+    c.execute("INSERT INTO queue (photo_id, text, document_id, channel_id, scheduled_time, status, file_unique_id) VALUES (?, ?, ?, ?, ?, 'pending', ?)", 
+              (photo_id, text, document_id, channel_id, scheduled_time, file_unique_id))
     conn.commit()
     conn.close()
 
@@ -103,12 +110,12 @@ def delete_from_queue(post_id):
     conn.commit()
     conn.close()
 
-def is_duplicate(document_id):
-    """Проверяет, есть ли такой файл уже в базе (в очереди или опубликован)."""
-    if not document_id: return False
+def is_duplicate(file_unique_id):
+    """Проверяет, есть ли такой файл уже в базе (в очереди или опубликован) по постоянному ID."""
+    if not file_unique_id: return False
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT 1 FROM queue WHERE document_id = ?", (document_id,))
+    c.execute("SELECT 1 FROM queue WHERE file_unique_id = ?", (file_unique_id,))
     res = c.fetchone()
     conn.close()
     return res is not None

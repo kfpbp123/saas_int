@@ -105,9 +105,10 @@ async def auto_scan_and_post():
             msg = messages[i]
             if (msg.document or msg.video) and (msg.date > datetime.now() - timedelta(days=2)):
                 
-                # Проверяем ГЛОБАЛЬНУЮ историю
+                # Проверяем ГЛОБАЛЬНУЮ историю (локальную и основную базу)
                 file_uid = msg.document.file_unique_id if msg.document else msg.video.file_unique_id
-                if is_already_sent(file_uid):
+                if is_already_sent(file_uid) or database.is_duplicate(file_uid):
+                    print(f"⏩ Мод {file_uid} уже был отправлен или есть в базе. Пропускаю.")
                     continue
 
                 try:

@@ -58,15 +58,17 @@
             border: 1px solid #30363d !important;
         }
         .hidden-section { display: none; }
+        .nav-scroll::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body class="p-4 md:p-8 pb-24">
     <div id="app" class="max-w-5xl mx-auto">
         <!-- Navigation -->
-        <nav class="flex justify-around mb-10 bg-black/30 backdrop-blur-md sticky top-0 z-40 p-2 rounded-2xl border border-white/5">
-            <button onclick="switchTab('dashboard')" id="tab-dashboard" class="px-4 py-3 font-black uppercase tracking-widest text-[10px] tab-active transition-all">Studio</button>
-            <button onclick="switchTab('ai')" id="tab-ai" class="px-4 py-3 font-black uppercase tracking-widest text-[10px] text-hint transition-all">AI Insights</button>
-            <button onclick="switchTab('channels')" id="tab-channels" class="px-4 py-3 font-black uppercase tracking-widest text-[10px] text-hint transition-all">Network</button>
+        <nav class="flex justify-start md:justify-around mb-10 bg-black/30 backdrop-blur-md sticky top-0 z-40 p-2 rounded-2xl border border-white/5 overflow-x-auto nav-scroll">
+            <button onclick="switchTab('dashboard')" id="tab-dashboard" class="px-6 py-3 font-black uppercase tracking-widest text-[10px] tab-active transition-all whitespace-nowrap">Studio</button>
+            <button onclick="switchTab('ai')" id="tab-ai" class="px-6 py-3 font-black uppercase tracking-widest text-[10px] text-hint transition-all whitespace-nowrap">AI Insights</button>
+            <button onclick="switchTab('trends')" id="tab-trends" class="px-6 py-3 font-black uppercase tracking-widest text-[10px] text-hint transition-all whitespace-nowrap">Web Trends</button>
+            <button onclick="switchTab('channels')" id="tab-channels" class="px-6 py-3 font-black uppercase tracking-widest text-[10px] text-hint transition-all whitespace-nowrap">Network</button>
         </nav>
 
         <!-- DASHBOARD SECTION -->
@@ -101,7 +103,7 @@
                     </button>
                 </div>
                 <div id="queue-list" class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <!-- Posts will be here -->
+                    <!-- Posts -->
                 </div>
             </section>
         </div>
@@ -111,12 +113,31 @@
             <h2 class="text-4xl font-black mb-10 glow-text tracking-tighter uppercase italic">AI Deep Analysis</h2>
             <div class="card p-8 min-h-[400px] flex flex-col">
                 <div id="ai-report" class="flex-1 text-sm whitespace-pre-wrap leading-relaxed font-sans text-gray-300 italic mb-8">
-                    <!-- AI Report will be here -->
                     <div class="flex items-center justify-center h-full opacity-30 tracking-[0.3em] font-black">Link Pending...</div>
                 </div>
                 <button id="btn-ai-analyze" onclick="fetchAI()" class="w-full btn-primary py-5 rounded-2xl font-black uppercase tracking-widest shadow-2xl active:scale-95 transition-all flex items-center justify-center">
                     <i data-lucide="brain-circuit" class="w-6 h-6 mr-3"></i> <span>Initiate Neural Scan</span>
                 </button>
+            </div>
+        </div>
+
+        <!-- TRENDS SECTION -->
+        <div id="section-trends" class="hidden-section">
+            <h2 class="text-4xl font-black mb-10 glow-text tracking-tighter uppercase italic">Web Trends</h2>
+            <div id="trends-list" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+                <!-- Trends -->
+                <div class="card p-12 text-center text-hint uppercase tracking-widest opacity-50 italic col-span-full">Initialize Global Search</div>
+            </div>
+            <button id="btn-trends" onclick="fetchTrends()" class="w-full btn-primary py-5 rounded-2xl font-black uppercase tracking-widest shadow-2xl active:scale-95 transition-all flex items-center justify-center">
+                <i data-lucide="search" class="w-6 h-6 mr-3"></i> <span>Scan Internet</span>
+            </button>
+        </div>
+
+        <!-- CHANNELS SECTION -->
+        <div id="section-channels" class="hidden-section">
+            <h2 class="text-4xl font-black mb-10 glow-text tracking-tighter uppercase italic">Network Management</h2>
+            <div id="channels-list" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Channels -->
             </div>
         </div>
     </div>
@@ -154,20 +175,19 @@
 
         let currentPostId = null;
         let currentPostTime = null;
+        let postDataCache = {};
         const API_URL = window.location.origin;
 
         function switchTab(tab) {
             document.getElementById('section-dashboard').classList.add('hidden-section');
             document.getElementById('section-channels').classList.add('hidden-section');
             document.getElementById('section-ai').classList.add('hidden-section');
+            document.getElementById('section-trends').classList.add('hidden-section');
             
-            document.getElementById('tab-dashboard').classList.remove('tab-active');
-            document.getElementById('tab-channels').classList.remove('tab-active');
-            document.getElementById('tab-ai').classList.remove('tab-active');
-            
-            document.getElementById('tab-dashboard').classList.add('text-hint');
-            document.getElementById('tab-channels').classList.add('text-hint');
-            document.getElementById('tab-ai').classList.add('text-hint');
+            ['dashboard', 'channels', 'ai', 'trends'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.remove('tab-active');
+                document.getElementById(`tab-${t}`).classList.add('text-hint');
+            });
             
             document.getElementById(`section-${tab}`).classList.remove('hidden-section');
             document.getElementById(`tab-${tab}`).classList.add('tab-active');
@@ -180,20 +200,41 @@
         async function fetchAI() {
             const btn = document.getElementById('btn-ai-analyze');
             const reportDiv = document.getElementById('ai-report');
-            
             btn.disabled = true;
             btn.innerHTML = '<i data-lucide="refresh-cw" class="w-6 h-6 mr-3 animate-spin"></i> TRANSMITTING...';
             reportDiv.innerHTML = '<div class="flex items-center justify-center h-full opacity-50"><span class="animate-pulse tracking-[0.5em] font-black italic">SCANNING SECTOR...</span></div>';
-            
             try {
                 const res = await fetch(`${API_URL}/api/ai/analyze`);
                 const data = await res.json();
                 reportDiv.innerHTML = data.report.replace(/\n/g, '<br>');
-            } catch (e) { 
-                reportDiv.innerHTML = '❌ Neural Link Failed.';
-            } finally {
+            } catch (e) { reportDiv.innerHTML = '❌ Link Failed.'; } finally {
                 btn.disabled = false;
                 btn.innerHTML = '<i data-lucide="brain-circuit" class="w-6 h-6 mr-3"></i> <span>Initiate Neural Scan</span>';
+                lucide.createIcons();
+            }
+        }
+
+        async function fetchTrends() {
+            const btn = document.getElementById('btn-trends');
+            const list = document.getElementById('trends-list');
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="refresh-cw" class="w-6 h-6 mr-3 animate-spin"></i> SCANNING WEB...';
+            try {
+                const res = await fetch(`${API_URL}/api/trends`);
+                const data = await res.json();
+                list.innerHTML = data.trends.map(t => `
+                    <div class="card p-6 flex flex-col border-[#30363d]">
+                        <div class="flex items-center mb-4">
+                            <i data-lucide="${t.source === 'YouTube' ? 'video' : 'package'}" class="w-5 h-5 mr-3 text-[#00fbff]"></i>
+                            <span class="text-[10px] font-black uppercase tracking-widest text-[#00fbff]">${t.source}</span>
+                        </div>
+                        <h4 class="text-sm font-bold mb-4 italic leading-snug">${t.title}</h4>
+                        <a href="${t.url}" target="_blank" class="text-center bg-[#00fbff]/10 text-[#00fbff] py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border border-[#00fbff]/20 hover:bg-[#00fbff]/20 transition-all">Open Link</a>
+                    </div>
+                `).join('');
+            } catch (e) { list.innerHTML = '<div class="col-span-full text-center text-red-500">Scan Failed</div>'; } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="search" class="w-6 h-6 mr-3"></i> <span>Search Internet</span>';
                 lucide.createIcons();
             }
         }
@@ -207,7 +248,6 @@
                 document.getElementById('stat-today').innerText = stats.today;
                 document.getElementById('stat-total').innerText = stats.total;
                 document.getElementById('stat-channels').innerText = stats.channels || 0;
-
                 const queueRes = await fetch(`${API_URL}/api/queue?t=${ts}`);
                 const queue = await queueRes.json();
                 renderQueue(queue);
@@ -225,46 +265,39 @@
         function renderQueue(posts) {
             const list = document.getElementById('queue-list');
             if (!posts || posts.length === 0) {
-                list.innerHTML = '<div class="col-span-full text-hint text-center py-24 bg-[#161b22] rounded-3xl border border-dashed border-[#30363d] uppercase tracking-[0.3em] opacity-50 italic">The Void is Empty</div>';
+                list.innerHTML = '<div class="col-span-full text-hint text-center py-24 bg-[#161b22] rounded-3xl border border-dashed border-[#30363d] uppercase tracking-[0.3em] opacity-50 italic">Empty Pipeline</div>';
                 return;
             }
-
+            postDataCache = {};
             list.innerHTML = posts.map(post => {
+                postDataCache[post.id] = post.text;
                 const date = new Date(post.scheduled_time * 1000).toLocaleString('ru-RU', {
                     day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
                 });
-                
                 let attachmentsHtml = '';
                 if (post.photo_id) {
                     const isAlbum = post.photo_id.includes(',');
-                    attachmentsHtml += `<div class="bg-[#00fbff]/10 text-[#00fbff] p-3 rounded-xl flex items-center mb-4 border border-[#00fbff]/20"><i data-lucide="${isAlbum ? 'layers' : 'image'}" class="w-4 h-4 mr-2"></i><span class="text-[10px] font-black uppercase">${isAlbum ? 'Visual Album' : 'Visual Data'}</span></div>`;
+                    attachmentsHtml += `<div class="bg-[#00fbff]/10 text-[#00fbff] p-3 rounded-xl flex items-center mb-4 border border-[#00fbff]/20"><i data-lucide="${isAlbum ? 'layers' : 'image'}" class="w-4 h-4 mr-2"></i><span class="text-[10px] font-black uppercase">${isAlbum ? 'Album' : 'Visual'}</span></div>`;
                 }
                 if (post.document_id) {
-                    attachmentsHtml += `<div class="bg-amber-500/10 text-amber-500 p-3 rounded-xl flex items-center mb-4 border border-amber-500/20"><i data-lucide="file-text" class="w-4 h-4 mr-2"></i><span class="text-[10px] font-black uppercase">Ancient File</span></div>`;
+                    attachmentsHtml += `<div class="bg-amber-500/10 text-amber-500 p-3 rounded-xl flex items-center mb-4 border border-amber-500/20"><i data-lucide="file-text" class="w-4 h-4 mr-2"></i><span class="text-[10px] font-black uppercase">File</span></div>`;
                 }
-
                 return `
                     <div class="card overflow-hidden flex flex-col border-[#30363d]">
                         <div class="p-5 border-b border-[#30363d] flex justify-between items-center bg-[#0d1117]/50">
-                            <div class="flex items-center">
-                                <div class="w-2 h-2 rounded-full bg-[#00fbff] mr-3 shadow-[0_0_10px_#00fbff]"></div>
-                                <span class="text-[10px] font-black uppercase tracking-widest text-[#00fbff]">${post.channel}</span>
-                            </div>
-                            <button onclick="openTimeModal(${post.id}, ${post.scheduled_time})" class="text-[10px] font-mono text-[#00fbff] bg-[#161b22] px-3 py-1.5 rounded-lg border border-[#00fbff]/30 shadow-inner hover:bg-[#00fbff]/10 transition-all">${date}</button>
+                            <span class="text-[10px] font-black uppercase tracking-widest text-[#00fbff]">${post.channel}</span>
+                            <button onclick="openTimeModal(${post.id}, ${post.scheduled_time})" class="text-[10px] font-mono text-[#00fbff] bg-[#161b22] px-3 py-1.5 rounded-lg border border-[#00fbff]/30">${date}</button>
                         </div>
                         <div class="p-8 flex-1">
                             ${attachmentsHtml}
-                            <div class="text-sm whitespace-pre-wrap leading-relaxed opacity-90 font-sans text-gray-300 italic">
+                            <div class="text-sm opacity-90 font-sans text-gray-300 italic line-clamp-6">
                                 ${post.text.replace(/<[^>]*>?/gm, '')}
                             </div>
                         </div>
                         <div class="p-5 bg-[#0d1117]/50 border-t border-[#30363d] flex space-x-4">
-                            <button onclick="openEdit(${post.id}, \`${post.text.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`)" 
-                                    class="flex-1 bg-[#161b22] border border-[#30363d] text-[#e6edf3] py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-[#30363d] transition-all">Edit</button>
-                            <button onclick="publishNow(${post.id})" 
-                                    class="flex-1 btn-publish py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] bg-white text-black shadow-xl">Publish</button>
-                            <button onclick="deletePost(${post.id})" 
-                                    class="w-14 flex items-center justify-center bg-[#161b22] border border-red-900/30 text-red-500 rounded-2xl hover:bg-red-500 hover:text-white transition-all"><i data-lucide="trash-2" class="w-6 h-6"></i></button>
+                            <button onclick="openEdit(${post.id})" class="flex-1 bg-[#161b22] border border-[#30363d] text-[#e6edf3] py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em]">Edit</button>
+                            <button onclick="publishNow(${post.id})" class="flex-1 btn-publish py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] bg-white text-black">Publish</button>
+                            <button onclick="deletePost(${post.id})" class="w-14 flex items-center justify-center bg-[#161b22] border border-red-900/30 text-red-500 rounded-2xl"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
                         </div>
                     </div>
                 `;
@@ -276,10 +309,7 @@
             const list = document.getElementById('channels-list');
             list.innerHTML = channels.map(ch => `
                 <div class="card p-6 flex justify-between items-center ${ch === active ? 'border-[#00fbff] bg-[#00fbff]/5' : 'border-[#30363d]'}">
-                    <div>
-                        <span class="text-sm font-black uppercase tracking-widest ${ch === active ? 'text-[#00fbff]' : 'text-hint'}">${ch}</span>
-                        ${ch === active ? '<div class="text-[10px] text-[#00fbff]/50 font-bold uppercase mt-1">Active Core</div>' : ''}
-                    </div>
+                    <span class="text-sm font-black uppercase tracking-widest ${ch === active ? 'text-[#00fbff]' : 'text-hint'}">${ch}</span>
                     ${ch !== active ? `
                         <button onclick="setActiveChannel('${ch}')" class="bg-[#161b22] border border-[#30363d] px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-[#00fbff]">Activate</button>
                     ` : '<i data-lucide="check-circle" class="text-[#00fbff] w-6 h-6"></i>'}
@@ -293,9 +323,9 @@
             fetchChannels();
         }
 
-        function openEdit(id, text) {
+        function openEdit(id) {
             currentPostId = id;
-            document.getElementById('edit-text').value = text;
+            document.getElementById('edit-text').value = postDataCache[id] || '';
             document.getElementById('modal').classList.remove('hidden');
         }
 
@@ -308,18 +338,11 @@
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({text: newText})
             });
-            closeModal();
-            fetchData();
+            closeModal(); fetchData();
         }
 
-        function openTimeModal(id, time) {
-            currentPostId = id;
-            currentPostTime = time;
-            document.getElementById('modal-time').classList.remove('hidden');
-        }
-
+        function openTimeModal(id, time) { currentPostId = id; currentPostTime = time; document.getElementById('modal-time').classList.remove('hidden'); }
         function closeTimeModal() { document.getElementById('modal-time').classList.add('hidden'); }
-
         async function shiftTime(hours) {
             const newTime = currentPostTime + (hours * 3600);
             await fetch(`${API_URL}/api/queue/${currentPostId}`, {
@@ -327,24 +350,11 @@
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({scheduled_time: newTime})
             });
-            closeTimeModal();
-            fetchData();
+            closeTimeModal(); fetchData();
         }
 
-        async function deletePost(id) {
-            if (!confirm('EXTRACT FROM THE VOID?')) return;
-            await fetch(`${API_URL}/api/queue/${id}`, {method: 'DELETE'});
-            fetchData();
-        }
-
-        async function publishNow(id) {
-            tg.MainButton.setText('TRANSMITTING...');
-            tg.MainButton.show();
-            await fetch(`${API_URL}/api/queue/${id}/publish`, {method: 'POST'});
-            tg.MainButton.hide();
-            fetchData();
-        }
-
+        async function deletePost(id) { if (!confirm('EXTRACT?')) return; await fetch(`${API_URL}/api/queue/${id}`, {method: 'DELETE'}); fetchData(); }
+        async function publishNow(id) { tg.MainButton.setText('TRANSMITTING...'); tg.MainButton.show(); await fetch(`${API_URL}/api/queue/${id}/publish`, {method: 'POST'}); tg.MainButton.hide(); fetchData(); }
         window.onload = () => { fetchData(); lucide.createIcons(); };
     </script>
 </body>

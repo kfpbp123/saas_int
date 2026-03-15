@@ -7,6 +7,7 @@ import config
 import core
 import utils
 import comments_analyzer
+import web_searcher
 import uvicorn
 import os
 from pydantic import BaseModel
@@ -92,6 +93,11 @@ async def set_active_channel(channel: str, user_id: int = 0):
 async def get_ai_analysis():
     report = comments_analyzer.analyze_comments()
     return {"report": report}
+
+@app.get("/api/trends")
+async def get_web_trends():
+    trends = web_searcher.get_all_trends()
+    return {"trends": trends}
 
 def run_api():
     port = int(os.getenv("PORT", 8000))

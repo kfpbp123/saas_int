@@ -90,86 +90,88 @@ def handle_text_photo_file(message):
 
     if user_id in getattr(config, 'ADMIN_IDS', []) and message.chat.type == 'private' and not is_creating:
         
-        # 1. Кэширование фото/текста
-        if message.photo or (message.content_type == 'text' and not message.document):
-            admin_media_cache[user_id] = {
-                'text': text,
-                'photo_id': message.photo[-1].file_id if message.photo else None,
-                'time': time.time()
-            }
-            print("🖼️/📝 Данные админа сохранены в кэш")
+        # ПРОВЕРКА: ВКЛЮЧЕН ЛИ АВТОПОСТИНГ
+        if database.is_auto_post_on():
+            # 1. Кэширование фото/текста
+            if message.photo or (message.content_type == 'text' and not message.document):
+                admin_media_cache[user_id] = {
+                    'text': text,
+                    'photo_id': message.photo[-1].file_id if message.photo else None,
+                    'time': time.time()
+                }
+                print("🖼️/📝 Данные админа сохранены в кэш")
 
-        # 2. Обработка файла (мода)
-        if (message.document or message.video) and message.chat.type == 'private':
-            doc_id = message.document.file_id if message.document else message.video.file_id
-            file_unique_id = message.document.file_unique_id if message.document else message.video.file_unique_id
-            
-            # ПРОВЕРКА НА ДУБЛИКАТ
-            if database.is_duplicate(file_unique_id):
-                bot.send_message(chat_id, "⏩ Мод уже есть в базе, пропускаю.")
-                return
-
-            bot.send_message(chat_id, "🤖 Мод получен. Обработка и водяной знак...")
-            
-            cache = admin_media_cache.get(user_id, {})
-            cache_text = cache.get('text', "")
-            cache_photo = cache.get('photo_id')
-            cache_time = cache.get('time', 0)
-            
-            # Если в кэше пусто, попробуем взять текст из самого сообщения с файлом
-            final_text = text or cache_text
-            if not final_text:
-                # Если текста совсем нет, попробуем использовать имя файла
-                file_name = message.document.file_name if message.document else "Minecraft Mod"
-                final_text = f"Mod: {file_name}"
+            # 2. Обработка файла (мода)
+            if (message.document or message.video) and message.chat.type == 'private':
+                doc_id = message.document.file_id if message.document else message.video.file_id
+                file_unique_id = message.document.file_unique_id if message.document else message.video.file_unique_id
                 
-            raw_photo = (message.photo[-1].file_id if message.photo else None) or cache_photo
-            
-            # Кэш фото/текста действителен 10 минут
-            if time.time() - cache_time > 600:
-                raw_photo = cache_photo if cache_photo else None
-                if not text and cache_text: final_text = cache_text
-
-            try:
-                # Генерируем текст через ИИ
-                ai_text = ai_generator.generate_post(final_text, lang)
-                
-                # Если ИИ отклонил пост или вернул ошибку
-                if not ai_text or "REJECT" in ai_text.upper() or "ERROR" in ai_text.upper():
-                    bot.send_message(chat_id, f"⏩ Пост отклонен или ошибка ИИ: {ai_text}")
+                # ПРОВЕРКА НА ДУБЛИКАТ
+                if database.is_duplicate(file_unique_id):
+                    bot.send_message(chat_id, "⏩ Мод уже есть в базе, пропускаю.")
                     return
 
-                # НАЛОЖЕНИЕ ВОДЯНОГО ЗНАКА
-                final_photo_id = None
-                if raw_photo:
-                    try:
-                        temp_in, temp_out = f"auto_in_{chat_id}.jpg", f"auto_out_{chat_id}.jpg"
-                        file_info = bot.get_file(raw_photo)
-                        downloaded_file = bot.download_file(file_info.file_path)
-                        with open(temp_in, 'wb') as f: f.write(downloaded_file)
-                        
-                        watermarker.add_watermark(temp_in, temp_out)
-                        
-                        with open(temp_out if os.path.exists(temp_out) else temp_in, 'rb') as f:
-                            sent_photo = bot.send_photo(chat_id, f, caption="🎨 Накладываю водяной знак...")
-                            final_photo_id = sent_photo.photo[-1].file_id
-                            bot.delete_message(chat_id, sent_photo.message_id)
-                            
-                        if os.path.exists(temp_in): os.remove(temp_in)
-                        if os.path.exists(temp_out): os.remove(temp_out)
-                    except Exception as we:
-                        print(f"⚠️ Ошибка водяного знака: {we}")
-                        final_photo_id = raw_photo
-
-                # Добавляем в очередь
-                new_time = core.get_next_schedule_time()
-                database.add_to_queue(final_photo_id, ai_text, doc_id, config.DEFAULT_CHANNEL, new_time, file_unique_id)
-                bot.send_message(chat_id, f"✅ Готово! Пост с водяным знаком в очереди на {datetime.fromtimestamp(new_time).strftime('%d.%m %H:%M')}")
+                bot.send_message(chat_id, "🤖 Мод получен. Обработка и водяной знак...")
                 
-                if user_id in admin_media_cache: del admin_media_cache[user_id]
-                return
-            except Exception as e:
-                bot.send_message(chat_id, f"❌ Ошибка авто-постинга: {e}")
+                cache = admin_media_cache.get(user_id, {})
+                cache_text = cache.get('text', "")
+                cache_photo = cache.get('photo_id')
+                cache_time = cache.get('time', 0)
+                
+                # Если в кэше пусто, попробуем взять текст из самого сообщения с файлом
+                final_text = text or cache_text
+                if not final_text:
+                    # Если текста совсем нет, попробуем использовать имя файла
+                    file_name = message.document.file_name if message.document else "Minecraft Mod"
+                    final_text = f"Mod: {file_name}"
+                    
+                raw_photo = (message.photo[-1].file_id if message.photo else None) or cache_photo
+                
+                # Кэш фото/текста действителен 10 минут
+                if time.time() - cache_time > 600:
+                    raw_photo = cache_photo if cache_photo else None
+                    if not text and cache_text: final_text = cache_text
+
+                try:
+                    # Генерируем текст через ИИ
+                    ai_text = ai_generator.generate_post(final_text, lang)
+                    
+                    # Если ИИ отклонил пост или вернул ошибку
+                    if not ai_text or "REJECT" in ai_text.upper() or "ERROR" in ai_text.upper():
+                        bot.send_message(chat_id, f"⏩ Пост отклонен или ошибка ИИ: {ai_text}")
+                        return
+
+                    # НАЛОЖЕНИЕ ВОДЯНОГО ЗНАКА
+                    final_photo_id = None
+                    if raw_photo:
+                        try:
+                            temp_in, temp_out = f"auto_in_{chat_id}.jpg", f"auto_out_{chat_id}.jpg"
+                            file_info = bot.get_file(raw_photo)
+                            downloaded_file = bot.download_file(file_info.file_path)
+                            with open(temp_in, 'wb') as f: f.write(downloaded_file)
+                            
+                            watermarker.add_watermark(temp_in, temp_out)
+                            
+                            with open(temp_out if os.path.exists(temp_out) else temp_in, 'rb') as f:
+                                sent_photo = bot.send_photo(chat_id, f, caption="🎨 Накладываю водяной знак...")
+                                final_photo_id = sent_photo.photo[-1].file_id
+                                bot.delete_message(chat_id, sent_photo.message_id)
+                                
+                            if os.path.exists(temp_in): os.remove(temp_in)
+                            if os.path.exists(temp_out): os.remove(temp_out)
+                        except Exception as we:
+                            print(f"⚠️ Ошибка водяного знака: {we}")
+                            final_photo_id = raw_photo
+
+                    # Добавляем в очередь
+                    new_time = core.get_next_schedule_time()
+                    database.add_to_queue(final_photo_id, ai_text, doc_id, config.DEFAULT_CHANNEL, new_time, file_unique_id)
+                    bot.send_message(chat_id, f"✅ Готово! Пост с водяным знаком в очереди на {datetime.fromtimestamp(new_time).strftime('%d.%m %H:%M')}")
+                    
+                    if user_id in admin_media_cache: del admin_media_cache[user_id]
+                    return
+                except Exception as e:
+                    bot.send_message(chat_id, f"❌ Ошибка авто-постинга: {e}")
 
     if message.chat.type in ['group', 'supergroup']:
         if text and not text.startswith('/'):
@@ -246,7 +248,8 @@ def handle_text_photo_file(message):
         elif text in [BUTTONS['uz']['stats'], BUTTONS['ru']['stats'], BUTTONS['en']['stats']]:
             core.show_stats(chat_id, len(utils.get_channels()), lang)
         elif text in [BUTTONS['uz']['settings'], BUTTONS['ru']['settings'], BUTTONS['en']['settings']]:
-            bot.send_message(chat_id, MESSAGES[lang]['settings'], reply_markup=markups.get_settings_menu(lang), parse_mode='HTML')
+            auto_p = database.is_auto_post_on()
+            bot.send_message(chat_id, MESSAGES[lang]['settings'], reply_markup=markups.get_settings_menu(lang, auto_p), parse_mode='HTML')
         elif text in [BUTTONS['uz']['analyze'], BUTTONS['ru']['analyze'], BUTTONS['en']['analyze']]:
             bot.send_chat_action(chat_id, 'typing')
             msg = bot.send_message(chat_id, MESSAGES[lang]['analyzing'], parse_mode='HTML')
@@ -348,6 +351,18 @@ def callback_handler(call):
     elif call.data == "add_new_channel":
         msg = bot.send_message(chat_id, MESSAGES[lang]['enter_channel'], reply_markup=markups.get_cancel_markup(lang))
         bot.register_next_step_handler(msg, process_add_channel_step)
+
+    elif call.data == "toggle_auto_post":
+        current = database.is_auto_post_on()
+        new_val = 0 if current else 1
+        database.set_global_setting('auto_post_enabled', new_val)
+        auto_p = (new_val == 1)
+        try:
+            bot.edit_message_reply_markup(chat_id, call.message.message_id, 
+                                          reply_markup=markups.get_settings_menu(lang, auto_p))
+            status_text = "🟢 ON" if auto_p else "🔴 OFF"
+            bot.answer_callback_query(call.id, f"Auto-Post: {status_text}")
+        except: pass
 
     elif call.data == "clear_comments_db":
         database.clear_comments()

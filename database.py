@@ -19,7 +19,15 @@ def init_db():
                   channel_id TEXT,
                   scheduled_time INTEGER,
                   status TEXT DEFAULT 'pending',
-                  file_unique_id TEXT)''')
+                  file_unique_id TEXT UNIQUE)''') # Добавили UNIQUE
+    
+    # Таблица глобальных настроек
+    c.execute('''CREATE TABLE IF NOT EXISTS global_settings
+                 (key TEXT PRIMARY KEY,
+                  value TEXT)''')
+    
+    # Значение по умолчанию для автопостинга (выключено)
+    c.execute("INSERT OR IGNORE INTO global_settings (key, value) VALUES ('auto_post_enabled', '0')")
     
     # Пытаемся добавить колонку, если её нет (для существующих БД)
     try:
@@ -130,15 +138,23 @@ def get_last_scheduled_time():
 
 # --- ФУНКЦИИ НАСТРОЕК И ЧЕРНОВИКОВ (ДОЛГАЯ ПАМЯТЬ) ---
 
-def set_user_setting(user_id, lang=None, channel=None):
+def set_global_setting(key, value):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    if lang:
-        c.execute("INSERT INTO user_settings (user_id, lang) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET lang=?", (user_id, lang, lang))
-    if channel:
-        c.execute("INSERT INTO user_settings (user_id, active_channel) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET active_channel=?", (user_id, channel, channel))
+    c.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES (?, ?)", (key, str(value)))
     conn.commit()
     conn.close()
+
+def get_global_setting(key, default='0'):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT value FROM global_settings WHERE key = ?", (key,))
+    row = c.fetchone()
+    conn.close()
+    return row[0] if row else default
+
+def is_auto_post_on():
+    return get_global_setting('auto_post_enabled') == '1'
 
 def get_user_settings(user_id):
     conn = sqlite3.connect(DB_PATH)

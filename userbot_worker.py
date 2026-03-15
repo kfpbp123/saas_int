@@ -77,6 +77,10 @@ async def handle_bot_reply(client, message):
 
 async def auto_scan_and_post():
     """Сканирует каналы и пошагово пересылает моды с ожиданием подтверждения."""
+    if not database.is_auto_post_on():
+        print(f"[{datetime.now()}] 🔴 Автопостинг выключен в базе. Пропускаю сканирование.")
+        return
+
     print(f"[{datetime.now()}] Старт авто-сканирования (SYNC MODE)...")
     init_history_db()
     mods_found = 0

@@ -17,14 +17,17 @@ def get_main_menu(lang='uz'):
     markup.add(KeyboardButton(b['analyze']))
     return markup
 
-def get_settings_menu(lang='uz'):
+def get_settings_menu(lang='uz', auto_post=False):
     markup = InlineKeyboardMarkup(row_width=2)
     # Кнопка Mini App в инлайн-меню настроек (только если HTTPS)
     if config.WEBAPP_URL and config.WEBAPP_URL.startswith('https'):
         try:
             markup.add(InlineKeyboardButton("📱 Open Mini App", web_app=WebAppInfo(url=config.WEBAPP_URL)))
         except: pass
-        
+    
+    auto_status = "🟢 ON" if auto_post else "🔴 OFF"
+    markup.add(InlineKeyboardButton(f"🤖 Auto-Post: {auto_status}", callback_data="toggle_auto_post"))
+
     markup.add(
         InlineKeyboardButton("📢 Ad Text", callback_data="set_ad_text"),
         InlineKeyboardButton("💾 Backup DB", callback_data="db_backup")

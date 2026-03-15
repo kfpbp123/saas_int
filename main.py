@@ -13,6 +13,7 @@ import comments_analyzer
 import utils
 import markups
 import core
+import web_searcher
 import pytz
 import re
 from datetime import datetime, timedelta
@@ -258,6 +259,23 @@ def handle_text_photo_file(message):
             markup = telebot.types.InlineKeyboardMarkup()
             markup.add(telebot.types.InlineKeyboardButton("🗑 Clear", callback_data="clear_comments_db"))
             bot.send_message(chat_id, report, parse_mode="HTML", reply_markup=markup)
+        elif text in [BUTTONS['uz']['trends'], BUTTONS['ru']['trends'], BUTTONS['en']['trends']]:
+            bot.send_chat_action(chat_id, 'typing')
+            msg = bot.send_message(chat_id, MESSAGES[lang]['searching_trends'], parse_mode='HTML')
+            
+            trends = web_searcher.get_all_trends()
+            bot.delete_message(chat_id, msg.message_id)
+            
+            if not trends:
+                bot.send_message(chat_id, "⚠️ No trends found.")
+                return
+            
+            res_text = MESSAGES[lang]['trending_title']
+            for i, item in enumerate(trends, 1):
+                icon = "🎬" if item['source'] == "YouTube" else "📦"
+                res_text += f"{i}. {icon} <a href='{item['url']}'>{item['title']}</a>\n"
+            
+            bot.send_message(chat_id, res_text, parse_mode='HTML', disable_web_page_preview=True)
         else:
             bot.send_chat_action(chat_id, 'typing')
             if not message.media_group_id:

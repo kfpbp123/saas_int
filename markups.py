@@ -14,7 +14,7 @@ def get_main_menu(lang='uz'):
             
     markup.add(KeyboardButton(b['create']), KeyboardButton(b['ai_chat']))
     markup.add(KeyboardButton(b['lang']), KeyboardButton(b['settings']))
-    markup.add(KeyboardButton(b['analyze']))
+    markup.add(KeyboardButton(b['analyze']), KeyboardButton(b['trends']))
     return markup
 
 def get_settings_menu(lang='uz', auto_post=False):

@@ -18,6 +18,8 @@ MESSAGES = {
         'no_draft': "⚠️ Chernovik bo'sh",
         'reply_info': "ℹ️ Faylni biriktirish uchun, ushbu postga fayl bilan 'Reply' qiling.",
         'analyzing': "🔍 <b>Tahlil qilinmoqda...</b>",
+        'searching_trends': "🔎 <b>Internetdan trenddagi modlarni qidirmoqdaman...</b>",
+        'trending_title': "🔥 <b>Trenddagi modlar va videolar:</b>\n\n",
         'stats': """📊 <b>Statistika</b>
 
 Jami postlar: <b>{total}</b>
@@ -45,6 +47,8 @@ Kanallar: <b>{channels}</b>"""
         'no_draft': "⚠️ Черновик пуст",
         'reply_info': "ℹ️ Чтобы прикрепить файл к посту, ответь (Reply) этим файлом на превью поста.",
         'analyzing': "🔍 <b>Анализирую...</b>",
+        'searching_trends': "🔎 <b>Ищу трендовые моды в интернете...</b>",
+        'trending_title': "🔥 <b>Трендовые моды и видео:</b>\n\n",
         'stats': """📊 <b>Статистика</b>
 
 Всего постов: <b>{total}</b>
@@ -72,6 +76,8 @@ Kanallar: <b>{channels}</b>"""
         'no_draft': "⚠️ Draft is empty",
         'reply_info': "ℹ️ To attach a file, reply to this preview with a file.",
         'analyzing': "🔍 <b>Analyzing...</b>",
+        'searching_trends': "🔎 <b>Searching for trending mods...</b>",
+        'trending_title': "🔥 <b>Trending mods and videos:</b>\n\n",
         'stats': """📊 <b>Statistics</b>
 
 Total posts: <b>{total}</b>
@@ -92,6 +98,7 @@ BUTTONS = {
         'stats': "📊 Statistika",
         'settings': "⚙️ Sozlamalar",
         'analyze': "🧐 Tahlil",
+        'trends': "🔎 Trendlar",
         'cancel': "❌ Bekor qilish",
         'smart_q': "⏳ Aqlli navbat",
         'now': "🚀 Hozir",
@@ -112,6 +119,7 @@ BUTTONS = {
         'stats': "📊 Статистика",
         'settings': "⚙️ Настройки",
         'analyze': "🧐 Анализ",
+        'trends': "🔎 Тренды",
         'cancel': "❌ Отмена",
         'smart_q': "⏳ Умная очередь",
         'now': "🚀 Сейчас",

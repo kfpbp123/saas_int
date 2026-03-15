@@ -254,20 +254,28 @@ def handle_text_photo_file(message):
         elif text in [BUTTONS['uz']['analyze'], BUTTONS['ru']['analyze'], BUTTONS['en']['analyze']]:
             bot.send_chat_action(chat_id, 'typing')
             msg = bot.send_message(chat_id, MESSAGES[lang]['analyzing'], parse_mode='HTML')
+            
+            # Анимация прогресса в отдельном потоке
+            threading.Thread(target=utils.animate_progress, args=(bot, chat_id, msg.message_id, MESSAGES[lang]['analyzing']), daemon=True).start()
+            
             report = comments_analyzer.analyze_comments()
-            bot.delete_message(chat_id, msg.message_id)
+            
+            # Даем анимации время или просто заменяем
             markup = telebot.types.InlineKeyboardMarkup()
             markup.add(telebot.types.InlineKeyboardButton("🗑 Clear", callback_data="clear_comments_db"))
-            bot.send_message(chat_id, report, parse_mode="HTML", reply_markup=markup)
+            bot.edit_message_text(report, chat_id, msg.message_id, parse_mode="HTML", reply_markup=markup)
+
         elif text in [BUTTONS['uz']['trends'], BUTTONS['ru']['trends'], BUTTONS['en']['trends']]:
             bot.send_chat_action(chat_id, 'typing')
             msg = bot.send_message(chat_id, MESSAGES[lang]['searching_trends'], parse_mode='HTML')
             
+            # Анимация прогресса
+            threading.Thread(target=utils.animate_progress, args=(bot, chat_id, msg.message_id, MESSAGES[lang]['searching_trends']), daemon=True).start()
+            
             trends = web_searcher.get_all_trends()
-            bot.delete_message(chat_id, msg.message_id)
             
             if not trends:
-                bot.send_message(chat_id, "⚠️ No trends found.")
+                bot.edit_message_text("⚠️ No trends found.", chat_id, msg.message_id)
                 return
             
             res_text = MESSAGES[lang]['trending_title']
@@ -275,7 +283,7 @@ def handle_text_photo_file(message):
                 icon = "🎬" if item['source'] == "YouTube" else "📦"
                 res_text += f"{i}. {icon} <a href='{item['url']}'>{item['title']}</a>\n"
             
-            bot.send_message(chat_id, res_text, parse_mode='HTML', disable_web_page_preview=True)
+            bot.edit_message_text(res_text, chat_id, msg.message_id, parse_mode='HTML', disable_web_page_preview=True)
         else:
             bot.send_chat_action(chat_id, 'typing')
             if not message.media_group_id:
@@ -304,6 +312,10 @@ def process_album_immediate(media_group_id, chat_id, user_id):
 def start_generation(chat_id, user_id, user_input, photo_id, is_album=False):
     lang = get_user_lang(user_id)
     msg = bot.send_message(chat_id, MESSAGES[lang]['generation_start'], parse_mode='HTML')
+    
+    # Анимация прогресса
+    threading.Thread(target=utils.animate_progress, args=(bot, chat_id, msg.message_id, MESSAGES[lang]['generation_start']), daemon=True).start()
+    
     generated_text = ai_generator.generate_post(user_input or "Minecraft", persona=lang)
     bot.delete_message(chat_id, msg.message_id)
     final_photo_id = photo_id

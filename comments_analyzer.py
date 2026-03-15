@@ -19,8 +19,8 @@ def analyze_comments():
         if not comments:
             return "📭 Пока нет новых комментариев для анализа."
         
-        # Берем последние 30 комментариев для анализа
-        comments_text = "\n".join([f"- {c[0]}: {c[1]}" for c in comments[-30:]])
+        # Берем последние 100 комментариев для анализа
+        comments_text = "\n".join([f"- {c[0]}: {c[1]}" for c in comments[-100:]])
         
         prompt = f"""
         Ты — аналитик Minecraft-сообщества. Проанализируй последние сообщения пользователей:

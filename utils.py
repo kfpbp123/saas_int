@@ -3,8 +3,20 @@ from datetime import datetime, timedelta
 import os
 import re
 import csv
+import time
 import config
 import database
+
+def animate_progress(bot, chat_id, message_id, base_text):
+    """Анимирует многоточие для эффекта загрузки"""
+    frames = ["⏳", "⏳.", "⏳..", "⏳..."]
+    for _ in range(3): # 3 цикла анимации
+        for frame in frames:
+            try:
+                bot.edit_message_text(f"{base_text}\n\n{frame}", chat_id, message_id, parse_mode='HTML')
+                time.sleep(0.5)
+            except:
+                return # Если сообщение удалено или ошибка
 
 def get_time_greeting():
     tashkent_tz = pytz.timezone('Asia/Tashkent')

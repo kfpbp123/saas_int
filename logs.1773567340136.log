@@ -1,0 +1,75 @@
+2026-03-15T09:31:22.147820880Z [inf]  Mounting volume on: /var/lib/containers/railwayapp/bind-mounts/845ed2c2-fdaf-4be2-b5ff-f669510f889e/vol_4zrlrt5roiu2ceuj
+2026-03-15T09:31:22.776270931Z [inf]  🚀 Запуск объединенной системы ботов...
+2026-03-15T09:31:22.776275470Z [inf]  ✅ Основной бот (@tgreplay_bot) запущен.
+2026-03-15T09:31:23.008123501Z [inf]  🗄️ Initializing database at: /data/bot_data.db
+2026-03-15T09:31:23.159400283Z [inf]  Starting Container
+2026-03-15T09:31:23.729230325Z [err]  INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+2026-03-15T09:31:23.729230393Z [err]  
+2026-03-15T09:31:23.729237825Z [err]  https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+2026-03-15T09:31:23.729249591Z [inf]  
+2026-03-15T09:31:23.729257914Z [err]  All support for the `google.generativeai` package has ended. It will no longer be receiving 
+2026-03-15T09:31:23.729260606Z [err]  INFO:     Started server process [2]
+2026-03-15T09:31:23.729263977Z [err]  /app/ai_generator.py:1: FutureWarning: 
+2026-03-15T09:31:23.729264403Z [err]  updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+2026-03-15T09:31:23.729269368Z [err]  INFO:     Waiting for application startup.
+2026-03-15T09:31:23.729272912Z [err]  See README for more details:
+2026-03-15T09:31:23.729273091Z [err]  
+2026-03-15T09:31:23.729274374Z [err]  
+2026-03-15T09:31:23.729279777Z [err]  INFO:     Application startup complete.
+2026-03-15T09:31:23.729285104Z [err]    import google.generativeai as genai
+2026-03-15T09:31:23.729290122Z [inf]  📡 Starting Web API on port 8080...🚀 Web App API thread started.
+2026-03-15T09:31:23.729295544Z [inf]  🗄️ Initializing database at: /data/bot_data.db
+2026-03-15T09:31:24.774895442Z [inf]  ✅ Юзербот запущен и начал сканирование.
+2026-03-15T09:31:24.774898099Z [inf]  
+2026-03-15T09:31:24.774900690Z [inf]  -------------------------------------------
+2026-03-15T09:31:24.774903243Z [inf]  Система работает. Нажмите Ctrl+C для выхода.
+2026-03-15T09:31:24.774905841Z [inf]  -------------------------------------------
+2026-03-15T09:31:25.013996208Z [err]  TgCrypto is missing! Pyrogram will work the same, but at a much slower speed. More info: https://docs.pyrogram.org/topics/speedups
+2026-03-15T09:31:25.141949668Z [inf]  🗄️ Initializing database at: /data/bot_data.db
+2026-03-15T09:31:25.223570288Z [inf]  🚀 Запуск юзербота (Synchronized Bridge)...
+2026-03-15T09:32:35.257623202Z [inf]  [2026-03-15 09:32:26.459431] 🔴 Автопостинг выключен в базе. Пропускаю сканирование.
+2026-03-15T09:32:43.192688004Z [inf]  INFO:     100.64.0.2:50622 - "GET /api/stats?t=1773567159338 HTTP/1.1" 200 OK
+2026-03-15T09:32:44.234388447Z [inf]  📊 API: Found 8 pending posts. Full list: [70, 57, 59, 60, 61, 62, 63, 67]
+2026-03-15T09:32:44.234397151Z [inf]  INFO:     100.64.0.2:50622 - "GET /api/queue?t=1773567159338 HTTP/1.1" 200 OK
+2026-03-15T09:32:44.234402267Z [inf]  📁 API accessing DB at: /data/bot_data.db
+2026-03-15T09:33:44.359741637Z [inf]  📩 [5703605946] Message: 🔎 Trendlar
+2026-03-15T09:33:44.359747268Z [err]  Traceback (most recent call last):
+2026-03-15T09:33:44.359753442Z [err]    File "/app/main.py", line 560, in <module>
+2026-03-15T09:33:44.359757587Z [err]      bot.polling(none_stop=True)
+2026-03-15T09:33:44.359762457Z [err]    File "/app/.venv/lib/python3.11/site-packages/telebot/__init__.py", line 1104, in polling
+2026-03-15T09:33:44.359766557Z [err]      self.__threaded_polling(non_stop=non_stop, interval=interval, timeout=timeout, long_polling_timeout=long_polling_timeout,
+2026-03-15T09:33:44.359770729Z [err]    File "/app/.venv/lib/python3.11/site-packages/telebot/__init__.py", line 1179, in __threaded_polling
+2026-03-15T09:33:44.359774789Z [err]      raise e
+2026-03-15T09:33:44.359779475Z [err]    File "/app/.venv/lib/python3.11/site-packages/telebot/__init__.py", line 1141, in __threaded_polling
+2026-03-15T09:33:44.359784369Z [err]      self.worker_pool.raise_exceptions()
+2026-03-15T09:33:44.359788844Z [err]    File "/app/.venv/lib/python3.11/site-packages/telebot/util.py", line 149, in raise_exceptions
+2026-03-15T09:33:44.359793449Z [err]      raise self.exception_info
+2026-03-15T09:33:44.359798124Z [err]    File "/app/.venv/lib/python3.11/site-packages/telebot/util.py", line 92, in run
+2026-03-15T09:33:44.359802263Z [err]      task(*args, **kwargs)
+2026-03-15T09:33:44.359806389Z [err]    File "/app/.venv/lib/python3.11/site-packages/telebot/__init__.py", line 7860, in _run_middlewares_and_handler
+2026-03-15T09:33:44.359810519Z [err]      result = handler['function'](message)
+2026-03-15T09:33:44.359815701Z [err]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-03-15T09:33:44.359820038Z [err]    File "/app/main.py", line 268, in handle_text_photo_file
+2026-03-15T09:33:44.359826141Z [err]      elif text in [BUTTONS['uz']['trends'], BUTTONS['ru']['trends'], BUTTONS['en']['trends']]:
+2026-03-15T09:33:44.359927093Z [err]         ~~~~~~~~~~~~~^^^^^^^^^^
+2026-03-15T09:33:44.359932087Z [err]  KeyError: 'trends'
+2026-03-15T09:33:44.359937833Z [err]                                                               
+2026-03-15T09:33:44.434617889Z [inf]  ⚠️ Основной бот упал! Перезапуск...
+2026-03-15T09:33:45.010465774Z [inf]  🗄️ Initializing database at: /data/bot_data.db
+2026-03-15T09:33:45.579752741Z [err]  
+2026-03-15T09:33:45.579761899Z [err]  https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+2026-03-15T09:33:45.579767120Z [err]  
+2026-03-15T09:33:45.579771680Z [err]    import google.generativeai as genai
+2026-03-15T09:33:45.579824149Z [err]  /app/ai_generator.py:1: FutureWarning: 
+2026-03-15T09:33:45.579828978Z [err]  
+2026-03-15T09:33:45.579833294Z [err]  All support for the `google.generativeai` package has ended. It will no longer be receiving 
+2026-03-15T09:33:45.579837772Z [err]  updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+2026-03-15T09:33:45.579842058Z [err]  See README for more details:
+2026-03-15T09:33:45.672222524Z [inf]  📡 Starting Web API on port 8080...
+2026-03-15T09:33:45.672227479Z [inf]  🚀 Web App API thread started.
+2026-03-15T09:33:45.672230357Z [inf]  🗄️ Initializing database at: /data/bot_data.db
+2026-03-15T09:33:45.675718997Z [err]  INFO:     Started server process [13]
+2026-03-15T09:33:45.675723105Z [err]  INFO:     Waiting for application startup.
+2026-03-15T09:33:45.675727221Z [err]  INFO:     Application startup complete.
+2026-03-15T09:33:45.678787607Z [err]  INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+2026-03-15T09:34:35.749186701Z [inf]  📩 [5703605946] Message: 🧐 Tahlil

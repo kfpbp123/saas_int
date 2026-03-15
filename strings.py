@@ -140,6 +140,7 @@ BUTTONS = {
         'stats': "📊 Statistics",
         'settings': "⚙️ Settings",
         'analyze': "🧐 Analyze",
+        'trends': "🔎 Trends",
         'cancel': "❌ Cancel",
         'smart_q': "⏳ Smart Queue",
         'now': "🚀 Now",

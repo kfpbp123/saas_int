@@ -41,8 +41,11 @@ if not scheduler.get_job('queue_process'):
 scheduler.start()
 
 def get_user_lang(user_id):
-    lang, _ = database.get_user_settings(user_id)
-    return lang or 'uz'
+    try:
+        lang, _ = database.get_user_settings(user_id)
+        return lang or 'uz'
+    except:
+        return 'uz'
 
 def show_queue_page(chat_id, page, message_id=None):
     user_id = chat_id # В личке совпадает

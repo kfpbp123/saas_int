@@ -105,6 +105,11 @@ async def get_web_trends():
     trends = web_searcher.get_all_trends()
     return {"trends": trends}
 
+@app.get("/api/cf/search")
+async def search_curseforge(sort: str = "popular"):
+    mods = web_searcher.get_curseforge_search(sort)
+    return {"mods": mods}
+
 @app.post("/api/ai/chat")
 async def ai_chat_handler(req: ChatRequest):
     stats = database.get_stats()

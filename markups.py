@@ -13,7 +13,16 @@ def get_main_menu(lang='uz'):
         except: pass
             
     markup.add(KeyboardButton(b['create']), KeyboardButton(b['lang']))
-    markup.add(KeyboardButton(b['settings']), KeyboardButton(b['analyze']))
+    markup.add(KeyboardButton(b['settings']), KeyboardButton(b['channels']))
+    markup.add(KeyboardButton(b['analyze']), KeyboardButton(b['stats']))
+    return markup
+
+def get_user_channels_markup(channels, lang='uz'):
+    b = BUTTONS.get(lang, BUTTONS['uz'])
+    markup = InlineKeyboardMarkup(row_width=1)
+    for ch in channels:
+        markup.add(InlineKeyboardButton(f"❌ @{ch.channel_username}", callback_data=f"del_ch_{ch.id}"))
+    markup.add(InlineKeyboardButton("➕ Add New Channel", callback_data="add_new_channel"))
     return markup
 
 def get_settings_menu(lang='uz', auto_post=False):
@@ -122,4 +131,66 @@ def get_queue_manage_markup(post_id, page, lang='uz'):
         InlineKeyboardButton(b['publish'], callback_data=f"q_pub_{post_id}"),
         InlineKeyboardButton(b['delete'], callback_data=f"q_del_{post_id}")
     )
+    return markup
+
+def get_pro_upgrade_markup(lang='uz'):
+    markup = InlineKeyboardMarkup(row_width=1)
+    markup.add(InlineKeyboardButton("💎 Buy PRO ($9.99/mo)", callback_data="buy_pro"))
+    return markup
+
+# --- ADMIN PANEL MARKUPS ---
+
+def get_admin_main_menu():
+    markup = InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        InlineKeyboardButton("👤 Users", callback_data="adm_users_0"),
+        InlineKeyboardButton("🤖 Bot Instances", callback_data="adm_bots")
+    )
+    markup.add(
+        InlineKeyboardButton("🔎 Scanner Whitelist", callback_data="adm_scanner"),
+        InlineKeyboardButton("📈 Global Stats", callback_data="adm_stats")
+    )
+    return markup
+
+def get_admin_users_menu(users, page=0):
+    markup = InlineKeyboardMarkup(row_width=1)
+    for u in users:
+        tier = u.subscription_tier or "Free"
+        status = "💎" if u.isPro else "👤"
+        markup.add(InlineKeyboardButton(f"{status} {u.username or u.telegramId} | {tier}", callback_data=f"adm_user_view_{u.telegramId}"))
+    
+    # Навигация
+    nav = []
+    if page > 0: nav.append(InlineKeyboardButton("⬅️ Back", callback_data=f"adm_users_{page-1}"))
+    nav.append(InlineKeyboardButton("➡️ Next", callback_data=f"adm_users_{page+1}"))
+    markup.add(*nav)
+    markup.add(InlineKeyboardButton("🔎 Search by ID", callback_data="adm_user_search"))
+    markup.add(InlineKeyboardButton("🔙 Back to Admin", callback_data="adm_main"))
+    return markup
+
+def get_admin_user_manage_markup(user_id):
+    markup = InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        InlineKeyboardButton("Free", callback_data=f"adm_set_tier_free_{user_id}"),
+        InlineKeyboardButton("Pro", callback_data=f"adm_set_tier_pro_{user_id}"),
+        InlineKeyboardButton("Business", callback_data=f"adm_set_tier_business_{user_id}")
+    )
+    markup.add(InlineKeyboardButton("🔙 Back to Users", callback_data="adm_users_0"))
+    return markup
+
+def get_admin_bots_menu(bots):
+    markup = InlineKeyboardMarkup(row_width=1)
+    for b in bots:
+        status = "🟢" if b.is_active else "🔴"
+        markup.add(InlineKeyboardButton(f"{status} {b.bot_username or b.id} | {b.id}", callback_data=f"adm_bot_toggle_{b.id}"))
+    markup.add(InlineKeyboardButton("➕ Add New Token", callback_data="adm_bot_add"))
+    markup.add(InlineKeyboardButton("🔙 Back to Admin", callback_data="adm_main"))
+    return markup
+
+def get_admin_scanner_menu(channels):
+    markup = InlineKeyboardMarkup(row_width=1)
+    for ch in channels:
+        markup.add(InlineKeyboardButton(f"❌ @{ch}", callback_data=f"adm_scan_del_{ch}"))
+    markup.add(InlineKeyboardButton("➕ Add New Whitelist Channel", callback_data="adm_scan_add"))
+    markup.add(InlineKeyboardButton("🔙 Back to Admin", callback_data="adm_main"))
     return markup

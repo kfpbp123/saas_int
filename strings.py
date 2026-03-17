@@ -20,7 +20,11 @@ MESSAGES = {
         'analyzing': "🔍 <b>Tahlil qilinmoqda...</b>",
         'searching_trends': "🔎 <b>Internetdan trenddagi modlarni qidirmoqdaman...</b>",
         'trending_title': "🔥 <b>Trenddagi modlar va videolar:</b>\n\n",
+        'not_pro': "🚫 <b>Kechirasiz, bu funksiya faqat PRO foydalanuvchilar uchun!</b>\n\nPRO obuna sotib olish va barcha imkoniyatlardan foydalanish uchun quyidagi tugmani bosing.",
+        'payment_sent': "✅ <b>To'lov so'rovi yuborildi!</b>\n\nAdmin chekingizni tekshirgandan so'ng PRO status beriladi.",
         'stats': """📊 <b>Statistika</b>
+
+Tarif: <b>{tier}</b> | Limit: <b>{used}/{limit}</b> postlar
 
 Jami postlar: <b>{total}</b>
 Chop etilgan: <b>{published}</b>
@@ -49,7 +53,11 @@ Kanallar: <b>{channels}</b>"""
         'analyzing': "🔍 <b>Анализирую...</b>",
         'searching_trends': "🔎 <b>Ищу трендовые моды в интернете...</b>",
         'trending_title': "🔥 <b>Трендовые моды и видео:</b>\n\n",
+        'not_pro': "🚫 <b>Извините, эта функция доступна только PRO пользователям!</b>\n\nНажмите кнопку ниже, чтобы купить PRO подписку и получить доступ ко всем возможностям.",
+        'payment_sent': "✅ <b>Запрос на оплату отправлен!</b>\n\nПосле проверки чека администратором вам будет присвоен статус PRO.",
         'stats': """📊 <b>Статистика</b>
+
+Тариф: <b>{tier}</b> | Лимит: <b>{used}/{limit}</b> постов
 
 Всего постов: <b>{total}</b>
 Опубликовано: <b>{published}</b>
@@ -78,7 +86,11 @@ Kanallar: <b>{channels}</b>"""
         'analyzing': "🔍 <b>Analyzing...</b>",
         'searching_trends': "🔎 <b>Searching for trending mods...</b>",
         'trending_title': "🔥 <b>Trending mods and videos:</b>\n\n",
+        'not_pro': "🚫 <b>Sorry, this feature is for PRO users only!</b>\n\nClick the button below to buy a PRO subscription and access all features.",
+        'payment_sent': "✅ <b>Payment request sent!</b>\n\nPRO status will be assigned after the admin checks your receipt.",
         'stats': """📊 <b>Statistics</b>
+
+Plan: <b>{tier}</b> | Limit: <b>{used}/{limit}</b> posts
 
 Total posts: <b>{total}</b>
 Published: <b>{published}</b>

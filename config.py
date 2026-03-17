@@ -25,3 +25,8 @@ WEBAPP_URL = _url or "http://localhost:8000"
 
 # 🧠 НОВАЯ НАСТРОЙКА: Интервал умной очереди (в часах)
 SMART_QUEUE_INTERVAL_HOURS = 6
+
+# 🗄️ Database
+DATABASE_URL = os.getenv("DATABASE_URL")
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)

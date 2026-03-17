@@ -1,157 +1,109 @@
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, Header, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from typing import List, Optional
 import database
 import config
-import core
-import utils
-import comments_analyzer
-import web_searcher
-import ai_generator
 import uvicorn
-import os
-import io
-from pydantic import BaseModel
-from typing import Optional
-import bot_instance
+import threading
 
-bot = bot_instance.bot
+app = FastAPI(title="MineBot API")
 
-app = FastAPI(title="Mine Bot TMA API")
-
-# Разрешаем CORS
+# Разрешаем CORS, чтобы фронтенд с Vercel мог стучаться к нашему боту в Railway
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"], # В продакшене заменим на URL твоего фронтенда
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-class ChatRequest(BaseModel):
-    message: str
-    user_id: int = 0
-    lang: str = 'uz'
+# --- SCHEMAS ---
+class UserInfo(BaseModel):
+    id: int
+    telegramId: int
+    username: Optional[str]
+    isPro: bool
+    tier: str
+    used: int
+    limit: int
 
-class PostUpdate(BaseModel):
-    text: Optional[str] = None
-    scheduled_time: Optional[int] = None
+class QueueItem(BaseModel):
+    id: int
+    text: Optional[str]
+    photo_id: Optional[str]
+    status: str
+    scheduled_time: int
+    channel: Optional[str]
 
-@app.get("/")
-async def read_index():
-    return FileResponse(os.path.join(os.path.dirname(__file__), "index.html"))
+# --- API ENDPOINTS ---
 
-@app.get("/api/image/{file_id}")
-async def get_image(file_id: str):
+@app.get("/api/user/{tg_id}", response_model=UserInfo)
+async def get_user(tg_id: int):
+    user = database.get_user_by_tg_id(tg_id)
+    if not user:
+        # Если юзера нет, создаем (MVP подход)
+        user = database.get_or_create_user(tg_id)
+    
+    usage = database.get_user_usage_info(tg_id)
+    return {
+        "id": user.id,
+        "telegramId": user.telegramId,
+        "username": user.username,
+        "isPro": user.isPro,
+        "tier": user.subscription_tier or "free",
+        "used": usage['used'],
+        "limit": usage['limit']
+    }
+
+@app.get("/api/queue/{tg_id}", response_model=List[QueueItem])
+async def get_user_queue(tg_id: int):
+    user = database.get_user_by_tg_id(tg_id)
+    if not user: return []
+    
+    db = database.SessionLocal()
     try:
-        # Теперь просто берем переданный ID, разделение списка будет на фронтенде
-        file_info = bot.get_file(file_id)
-        downloaded_file = bot.download_file(file_info.file_path)
-        return Response(content=downloaded_file, media_type="image/jpeg")
-    except Exception as e:
-        print(f"❌ API Image Error for {file_id}: {e}")
-        raise HTTPException(status_code=404, detail="Image not found")
-
-@app.get("/api/stats")
-async def get_stats():
-    return database.get_stats()
-
-@app.get("/api/queue")
-async def get_queue():
-    print(f"📁 API accessing DB at: {database.DB_PATH}")
-    posts = database.get_all_pending()
-    print(f"📊 API: Found {len(posts)} pending posts. Full list: {[p[0] for p in posts]}")
-    result = []
-    for p in posts:
-        result.append({
-            "id": p[0],
-            "photo_id": p[1],
-            "text": p[2],
-            "document_id": p[3],
-            "channel": p[4] or config.DEFAULT_CHANNEL,
-            "scheduled_time": p[5]
-        })
-    return result
+        posts = db.query(database.Queue).filter(
+            database.Queue.owner_id == user.id, 
+            database.Queue.status == 'pending'
+        ).order_by(database.Queue.scheduled_time.asc()).all()
+        
+        return [{
+            "id": p.id,
+            "text": p.text,
+            "photo_id": p.photo_id,
+            "status": p.status,
+            "scheduled_time": p.scheduled_time,
+            "channel": p.channel_id
+        } for p in posts]
+    finally:
+        db.close()
 
 @app.delete("/api/queue/{post_id}")
-async def delete_post(post_id: int):
-    database.delete_from_queue(post_id)
-    return {"status": "ok"}
+async def delete_post(post_id: int, tg_id: int):
+    # Проверка владельца (безопасность)
+    user = database.get_user_by_tg_id(tg_id)
+    db = database.SessionLocal()
+    try:
+        post = db.query(database.Queue).filter(database.Queue.id == post_id, database.Queue.owner_id == user.id).first()
+        if post:
+            db.delete(post)
+            db.commit()
+            return {"status": "ok"}
+        raise HTTPException(status_code=403, detail="Not authorized or post not found")
+    finally:
+        db.close()
 
-@app.put("/api/queue/{post_id}")
-async def update_post(post_id: int, data: PostUpdate):
-    if data.text is not None:
-        database.update_post_text(post_id, data.text)
-    if data.scheduled_time is not None:
-        database.update_post_time(post_id, data.scheduled_time)
-    return {"status": "ok"}
+@app.get("/api/admin/stats")
+async def get_admin_stats(tg_id: int):
+    if tg_id not in config.ADMIN_IDS:
+        raise HTTPException(status_code=403, detail="Admin only")
+    return database.get_global_stats()
 
-@app.post("/api/queue/{post_id}/publish")
-async def publish_now(post_id: int):
-    posts = database.get_all_pending()
-    post = next((p for p in posts if p[0] == post_id), None)
-    if not post:
-        raise HTTPException(status_code=404, detail="Post not found")
-    
-    success = core.publish_post_data(post[0], post[1], post[2], post[3], post[4] or config.DEFAULT_CHANNEL)
-    if success:
-        return {"status": "ok"}
-    raise HTTPException(status_code=500, detail="Publish failed")
-
-@app.get("/api/channels")
-async def get_channels_list(user_id: int = 0):
-    channels = utils.get_channels()
-    active = utils.get_active_channel(user_id or getattr(config, 'ADMIN_IDS', [0])[0])
-    return {"channels": channels, "active": active}
-
-@app.post("/api/channels/set")
-async def set_active_channel(channel: str, user_id: int = 0):
-    uid = user_id or getattr(config, 'ADMIN_IDS', [0])[0]
-    database.set_user_setting(uid, channel=channel)
-    return {"status": "ok"}
-
-@app.get("/api/ai/analyze")
-async def get_ai_analysis():
-    report = comments_analyzer.analyze_comments()
-    return {"report": report}
-
-@app.get("/api/trends")
-async def get_web_trends():
-    trends = web_searcher.get_all_trends()
-    return {"trends": trends}
-
-@app.get("/api/cf/search")
-async def search_curseforge(sort: str = "popular"):
-    mods = web_searcher.get_curseforge_search(sort)
-    return {"mods": mods}
-
-@app.post("/api/ai/chat")
-async def ai_chat_handler(req: ChatRequest):
-    stats = database.get_stats()
-    channel = utils.get_active_channel(req.user_id)
-    comments = database.get_all_comments()[-20:]
-    comm_text = "\n".join([f"- {c[0]}: {c[1]}" for c in comments])
-    
-    context = f"""
-    [SYSTEM CONTEXT]
-    You are an AI assistant for the Minecraft Telegram channel admin.
-    Current Channel: {channel}
-    Total Posts: {stats['total']}
-    Pending in Queue: {stats['queue']}
-    Focus: Minecraft Bedrock Edition (PE), Addons, Mobile.
-    Recent User Comments:
-    {comm_text or "No recent comments"}
-    
-    User Question: {req.message}
-    """
-    
-    response = ai_generator.chat_with_ai(context, req.lang)
-    return {"response": response}
-
+# --- RUNNER ---
 def run_api():
     port = int(os.getenv("PORT", 8000))
-    print(f"📡 Starting Web API on port {port}...")
-    try:
-        uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
-    except Exception as e:
-        print(f"❌ Uvicorn failed: {e}")
+    print(f"📡 API Server starting on port {port}...")
+    uvicorn.run(app, host="0.0.0.0", port=port)
+
+import os

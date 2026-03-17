@@ -81,10 +81,16 @@ async def auto_scan_and_post():
         print(f"[{datetime.now()}] 🔴 Автопостинг выключен в базе. Пропускаю сканирование.")
         return
 
-    print(f"[{datetime.now()}] Старт авто-сканирования (SYNC MODE)...")
+    print(f"[{datetime.now()}] Старт авто-сканирования (SaaS Mode)...")
     init_history_db()
     mods_found = 0
     
+    # Берем белый список из БД
+    WHITELIST_CHANNELS = database.get_whitelist_channels()
+    if not WHITELIST_CHANNELS:
+        print("⚠️ Белый список пуст. Добавьте каналы через БД.")
+        return
+
     async for dialog in app.get_dialogs():
         if mods_found >= AUTO_POST_LIMIT: break
             
@@ -94,6 +100,7 @@ async def auto_scan_and_post():
         if dialog.chat.type.value != "channel" or any(ex in username for ex in EXCLUDED_CHANNELS):
             continue
             
+        # Проверка по белому списку из БД
         if not any(t.lower() in username or t.lower() in invite_link for t in WHITELIST_CHANNELS):
             continue
 

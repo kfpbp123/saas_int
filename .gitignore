@@ -1,15 +1,18 @@
-# Секреты и токены
-.env
-
-# База данных и кэш
-bot_data.db
 __pycache__/
-*.pyc
-
-# Временные файлы картинок
-in_*.jpg
-out_*.jpg
-
-# Локальные текстовые файлы (опционально, если не хочешь пушить свои каналы/рекламу)
-channels.txt
-ad.txt
+*.py[cod]
+*$py.class
+.env
+.venv
+venv/
+ENV/
+env/
+.vscode/
+.idea/
+*.db
+*.sqlite
+*.session
+*.log
+*.bak
+mine_bot_tg-main/
+node_modules/
+DRAFT_POSTS/

@@ -1,29 +1,32 @@
+import config
+import re
+import requests
+from bs4 import BeautifulSoup
+from groq import Groq
+
+# Настройка Gemini (с поддержкой старой и новой библиотек)
 try:
     from google import genai
     from google.genai import types
     gemini_client = genai.Client(api_key=config.GEMINI_KEY)
     GEMINI_AVAILABLE = True
-except ImportError:
-    import google.generativeai as genai
-    from google.generativeai.types import HarmCategory, HarmBlockThreshold
-    genai.configure(api_key=config.GEMINI_KEY)
-    GEMINI_AVAILABLE = False
-
-from groq import Groq
-import config
-import re
-import requests
-from bs4 import BeautifulSoup
-
-# Настройка API
-# Gemini
-GEMINI_MODEL_ID = "gemini-2.0-flash"
-if not GEMINI_AVAILABLE:
-    gemini_model = genai.GenerativeModel(GEMINI_MODEL_ID)
+except (ImportError, AttributeError):
+    try:
+        import google.generativeai as genai
+        from google.generativeai.types import HarmCategory, HarmBlockThreshold
+        genai.configure(api_key=config.GEMINI_KEY)
+        GEMINI_AVAILABLE = False
+    except ImportError:
+        GEMINI_AVAILABLE = False
 
 # Groq
 groq_client = Groq(api_key=config.GROQ_API_KEY)
 GROQ_MODEL_ID = "llama-3.3-70b-versatile"
+GEMINI_MODEL_ID = "gemini-2.0-flash"
+
+if not GEMINI_AVAILABLE and 'genai' in globals() and hasattr(genai, 'GenerativeModel'):
+    gemini_model = genai.GenerativeModel(GEMINI_MODEL_ID)
+
 
 PROMPTS = {
     "uz": """Sen Minecraft modlari haqidagi Telegram kanali uchun kreativ redaktorsan.

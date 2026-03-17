@@ -1,5 +1,14 @@
-import google.generativeai as genai
-from google.generativeai.types import HarmCategory, HarmBlockThreshold
+try:
+    from google import genai
+    from google.genai import types
+    gemini_client = genai.Client(api_key=config.GEMINI_KEY)
+    GEMINI_AVAILABLE = True
+except ImportError:
+    import google.generativeai as genai
+    from google.generativeai.types import HarmCategory, HarmBlockThreshold
+    genai.configure(api_key=config.GEMINI_KEY)
+    GEMINI_AVAILABLE = False
+
 from groq import Groq
 import config
 import re
@@ -8,9 +17,9 @@ from bs4 import BeautifulSoup
 
 # Настройка API
 # Gemini
-genai.configure(api_key=config.GEMINI_KEY)
 GEMINI_MODEL_ID = "gemini-2.0-flash"
-gemini_model = genai.GenerativeModel(GEMINI_MODEL_ID)
+if not GEMINI_AVAILABLE:
+    gemini_model = genai.GenerativeModel(GEMINI_MODEL_ID)
 
 # Groq
 groq_client = Groq(api_key=config.GROQ_API_KEY)
@@ -147,28 +156,44 @@ def generate_post(user_input, persona="uz"):
 
     # Режим работы через Gemini (по умолчанию)
     try:
-        safety_settings = {
-            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-        }
-
-        response = gemini_model.generate_content(
-            full_prompt,
-            safety_settings=safety_settings
-        )
-        
-        if not response.candidates:
-            return "⚠️ Gemini error: Ответ пуст (возможно, из-за фильтров безопасности)."
-
-        try:
+        if GEMINI_AVAILABLE:
+            config_gen = types.GenerateContentConfig(
+                safety_settings=[
+                    types.SafetySetting(category='HARM_CATEGORY_HARASSMENT', threshold='BLOCK_NONE'),
+                    types.SafetySetting(category='HARM_CATEGORY_HATE_SPEECH', threshold='BLOCK_NONE'),
+                    types.SafetySetting(category='HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold='BLOCK_NONE'),
+                    types.SafetySetting(category='HARM_CATEGORY_DANGEROUS_CONTENT', threshold='BLOCK_NONE'),
+                ]
+            )
+            response = gemini_client.models.generate_content(
+                model=GEMINI_MODEL_ID,
+                contents=full_prompt,
+                config=config_gen
+            )
             final_text = response.text.strip()
-        except Exception:
+        else:
+            safety_settings = {
+                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+            }
+
+            response = gemini_model.generate_content(
+                full_prompt,
+                safety_settings=safety_settings
+            )
+            
+            if not response.candidates:
+                return "⚠️ Gemini error: Ответ пуст (возможно, из-за фильтров безопасности)."
+
             try:
-                final_text = response.candidates[0].content.parts[0].text.strip()
-            except:
-                return "⚠️ Gemini error: Не удалось извлечь текст из ответа."
+                final_text = response.text.strip()
+            except Exception:
+                try:
+                    final_text = response.candidates[0].content.parts[0].text.strip()
+                except:
+                    return "⚠️ Gemini error: Не удалось извлечь текст из ответа."
 
         final_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', final_text)
         return final_text
@@ -187,7 +212,10 @@ def rewrite_post(text, style="short", persona="uz"):
             )
             res = completion.choices[0].message.content.strip()
         else:
-            response = gemini_model.generate_content(prompt)
+            if GEMINI_AVAILABLE:
+                response = gemini_client.models.generate_content(model=GEMINI_MODEL_ID, contents=prompt)
+            else:
+                response = gemini_model.generate_content(prompt)
             res = response.text.strip()
             
         return re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', res)
@@ -204,6 +232,9 @@ def chat_with_ai(user_message, persona="uz"):
             )
             return completion.choices[0].message.content.strip()
         else:
-            response = gemini_model.generate_content(prompt)
+            if GEMINI_AVAILABLE:
+                response = gemini_client.models.generate_content(model=GEMINI_MODEL_ID, contents=prompt)
+            else:
+                response = gemini_model.generate_content(prompt)
             return response.text.strip()
     except: return "Error."

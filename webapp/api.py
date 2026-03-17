@@ -44,13 +44,12 @@ async def read_index():
 @app.get("/api/image/{file_id}")
 async def get_image(file_id: str):
     try:
-        # Если это несколько ID через запятую (альбом), берем первый
-        actual_id = file_id.split(',')[0]
-        file_info = bot.get_file(actual_id)
+        # Теперь просто берем переданный ID, разделение списка будет на фронтенде
+        file_info = bot.get_file(file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         return Response(content=downloaded_file, media_type="image/jpeg")
     except Exception as e:
-        print(f"❌ API Image Error: {e}")
+        print(f"❌ API Image Error for {file_id}: {e}")
         raise HTTPException(status_code=404, detail="Image not found")
 
 @app.get("/api/stats")

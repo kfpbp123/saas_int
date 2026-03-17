@@ -31,16 +31,11 @@ def format_queue_post(post, index, total):
     
     attachments = []
     if photo_id:
-        if ',' in photo_id: attachments.append("🖼 Альбом")
+        if ',' in photo_id: attachments.append(f"🖼 Альбом ({len(photo_id.split(','))} фото)")
         else: attachments.append("🖼 Фото")
-    if doc_id:
-        attachments.append("📄 Файл")
     
-    if not attachments:
-        type_str = "📝 Только текст"
-    else:
-        type_str = " + ".join(attachments)
-
+    file_status = "✅ Есть" if doc_id else "❌ Нет"
+    
     tashkent_tz = pytz.timezone('Asia/Tashkent')
     if time_sched:
         dt = datetime.fromtimestamp(time_sched, tashkent_tz)
@@ -51,17 +46,16 @@ def format_queue_post(post, index, total):
     else:
         time_str = "Время не задано"
 
-    preview = re.sub(r'<[^>]+>', '', text)[:100]
-    return f"""━━━━━━━━━━━━━
-📦 Пост {index}/{total}
+    return f"""📋 <b>Пост {index} из {total}</b>
 ━━━━━━━━━━━━━
-📎 <b>Вложения:</b> {type_str}
-📢 <b>Канал:</b> {channel or config.DEFAULT_CHANNEL}
+🆔 ID: <code>{post_id}</code>
 ⏳ <b>Время:</b> {time_str}
+📢 <b>Канал:</b> {channel or config.DEFAULT_CHANNEL}
+📄 <b>Файл:</b> {file_status}
+🖼 <b>Медиа:</b> {", ".join(attachments) if attachments else "Нет"}
+━━━━━━━━━━━━━
 
-📖 <b>Текст:</b>
-<i>{preview}{'...' if len(text) > 100 else ''}</i>
-━━━━━━━━━━━━━"""
+{text}"""
 
 def get_html_text(message):
     """Конвертирует текст сообщения Telegram с сущностями (bold, italic и т.д.) в HTML."""

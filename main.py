@@ -53,18 +53,38 @@ def show_queue_page(chat_id, page, message_id=None):
     posts = database.get_all_pending()
     if not posts:
         text = MESSAGES[lang]['queue_empty']
-        if message_id: bot.edit_message_text(text, chat_id, message_id, parse_mode='HTML')
-        else: bot.send_message(chat_id, text, parse_mode='HTML')
+        if message_id:
+            try: bot.delete_message(chat_id, message_id)
+            except: pass
+        bot.send_message(chat_id, text, parse_mode='HTML')
         return
+
     if page >= len(posts): page = len(posts) - 1
     if page < 0: page = 0
     post = posts[page]
+    post_id, photo_id, text, doc_id, channel, time_sched = post
+    
     msg_text = utils.format_queue_post(post, page + 1, len(posts))
-    markup = markups.get_queue_manage_markup(post[0], page, lang)
+    markup = markups.get_queue_manage_markup(post_id, page, lang)
+
+    # Если было message_id, пробуем удалить старое сообщение (чтобы не дублировать медиа)
     if message_id:
-        try: bot.edit_message_text(msg_text, chat_id, message_id, parse_mode='HTML', reply_markup=markup)
+        try: bot.delete_message(chat_id, message_id)
         except: pass
-    else: bot.send_message(chat_id, msg_text, parse_mode='HTML', reply_markup=markup)
+
+    # ОТПРАВКА С ВИЗУАЛИЗАЦИЕЙ (ФОТО/АЛЬБОМ)
+    if photo_id:
+        if ',' in photo_id:
+            bot.send_media_group(chat_id, [telebot.types.InputMediaPhoto(m) for m in photo_id.split(',')])
+            bot.send_message(chat_id, msg_text, parse_mode='HTML', reply_markup=markup)
+        else:
+            if len(msg_text) <= 1024:
+                bot.send_photo(chat_id, photo_id, caption=msg_text, parse_mode='HTML', reply_markup=markup)
+            else:
+                bot.send_photo(chat_id, photo_id)
+                bot.send_message(chat_id, msg_text, parse_mode='HTML', reply_markup=markup)
+    else:
+        bot.send_message(chat_id, msg_text, parse_mode='HTML', reply_markup=markup)
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -92,11 +112,12 @@ def handle_text_photo_file(message):
     state_data = user_states.get(chat_id)
     is_creating = state_data and state_data.get('state') == 'creating_post'
 
+    # Если мы в процессе создания поста вручную - НЕ ПУСКАЕМ В АВТОПОСТИНГ
     if user_id in getattr(config, 'ADMIN_IDS', []) and message.chat.type == 'private' and not is_creating:
         
         # ПРОВЕРКА: ВКЛЮЧЕН ЛИ АВТОПОСТИНГ
         if database.is_auto_post_on():
-            # 1. Кэширование фото/текста
+            # 1. Кэширование фото/текста (для объединения)
             if message.photo or (message.content_type == 'text' and not message.document):
                 admin_media_cache[user_id] = {
                     'text': text,
@@ -113,6 +134,17 @@ def handle_text_photo_file(message):
                 # ПРОВЕРКА НА ДУБЛИКАТ
                 if database.is_duplicate(file_unique_id):
                     bot.send_message(chat_id, "⏩ Мод уже есть в базе, пропускаю.")
+                    return
+
+                # --- НОВАЯ ЛОГИКА ДЛЯ РУЧНОГО СОЗДАНИЯ ---
+                state_data = user_states.get(chat_id)
+                if state_data and state_data.get('state') == 'creating_post':
+                    draft = database.get_draft(user_id) or {'photo': None, 'text': "", 'document': None, 'channel': config.DEFAULT_CHANNEL}
+                    draft['document'] = doc_id
+                    database.save_draft(user_id, draft['photo'], draft['text'], doc_id, draft['channel'])
+                    user_states[chat_id] = None # Сбрасываем состояние
+                    bot.send_message(chat_id, "📎 Файл прикреплен к черновику!", reply_markup=markups.get_main_menu(lang))
+                    send_draft_preview(chat_id, draft)
                     return
 
                 bot.send_message(chat_id, "🤖 Мод получен. Обработка и водяной знак...")
@@ -169,8 +201,28 @@ def handle_text_photo_file(message):
 
                     # Добавляем в очередь
                     new_time = core.get_next_schedule_time()
-                    database.add_to_queue(final_photo_id, ai_text, doc_id, config.DEFAULT_CHANNEL, new_time, file_unique_id)
-                    bot.send_message(chat_id, f"✅ Готово! Пост с водяным знаком в очереди на {datetime.fromtimestamp(new_time).strftime('%d.%m %H:%M')}")
+                    post_id = database.add_to_queue(final_photo_id, ai_text, doc_id, config.DEFAULT_CHANNEL, new_time, file_unique_id)
+                    
+                    # ПРЕВЬЮ ПОСЛЕ АВТОПОСТИНГА (ЧТОБЫ АДМИН МОГ СРАЗУ УДАЛИТЬ ИЛИ ИЗМЕНИТЬ)
+                    time_str = datetime.fromtimestamp(new_time).strftime('%d.%m %H:%M')
+                    doc_info = "\n\n📄 <b>Файл:</b> Есть" if doc_id else ""
+                    caption = f"{ai_text}{doc_info}\n\n✅ Готово! В очереди на {time_str}"
+                    
+                    # Получаем разметку управления очередью для этого поста
+                    markup = markups.get_queue_manage_markup(post_id, 0, lang)
+                    
+                    if final_photo_id:
+                        if ',' in final_photo_id:
+                            bot.send_media_group(chat_id, [telebot.types.InputMediaPhoto(m) for m in final_photo_id.split(',')])
+                            bot.send_message(chat_id, caption, parse_mode='HTML', reply_markup=markup)
+                        else:
+                            if len(caption) <= 1024:
+                                bot.send_photo(chat_id, final_photo_id, caption=caption, parse_mode='HTML', reply_markup=markup)
+                            else:
+                                bot.send_photo(chat_id, final_photo_id)
+                                bot.send_message(chat_id, caption, parse_mode='HTML', reply_markup=markup)
+                    else:
+                        bot.send_message(chat_id, caption, parse_mode='HTML', reply_markup=markup)
                     
                     if user_id in admin_media_cache: del admin_media_cache[user_id]
                     return
@@ -321,22 +373,34 @@ def start_generation(chat_id, user_id, user_input, photo_id, is_album=False):
     
     generated_text = ai_generator.generate_post(user_input or "Minecraft", persona=lang)
     bot.delete_message(chat_id, msg.message_id)
-    final_photo_id = photo_id
-    if photo_id and not is_album:
+    
+    final_photo_ids = []
+    if photo_id:
         bot.send_chat_action(chat_id, 'upload_photo')
-        temp_in, temp_out = f"in_{chat_id}.jpg", f"out_{chat_id}.jpg"
-        file_info = bot.get_file(photo_id)
-        with open(temp_in, 'wb') as f: f.write(bot.download_file(file_info.file_path))
-        watermarker.add_watermark(temp_in, temp_out)
-        with open(temp_out if os.path.exists(temp_out) else temp_in, 'rb') as f:
-            sent = bot.send_photo(chat_id, f)
-            final_photo_id = sent.photo[-1].file_id
-            bot.delete_message(chat_id, sent.message_id)
-        if os.path.exists(temp_in): os.remove(temp_in)
-        if os.path.exists(temp_out): os.remove(temp_out)
+        input_ids = photo_id.split(',') if is_album else [photo_id]
+        
+        for p_id in input_ids:
+            try:
+                temp_in, temp_out = f"in_{chat_id}_{len(final_photo_ids)}.jpg", f"out_{chat_id}_{len(final_photo_ids)}.jpg"
+                file_info = bot.get_file(p_id)
+                with open(temp_in, 'wb') as f: f.write(bot.download_file(file_info.file_path))
+                
+                watermarker.add_watermark(temp_in, temp_out)
+                
+                with open(temp_out if os.path.exists(temp_out) else temp_in, 'rb') as f:
+                    sent = bot.send_photo(chat_id, f, caption="🎨 Processing photo...")
+                    final_photo_ids.append(sent.photo[-1].file_id)
+                    bot.delete_message(chat_id, sent.message_id)
+                
+                if os.path.exists(temp_in): os.remove(temp_in)
+                if os.path.exists(temp_out): os.remove(temp_out)
+            except Exception as e:
+                print(f"⚠️ Error watermarking photo {p_id}: {e}")
+                final_photo_ids.append(p_id)
 
-    draft = {'photo': final_photo_id, 'text': generated_text, 'document': None, 'ad_added': False, 'channel': utils.get_active_channel(user_id)}
-    database.save_draft(user_id, final_photo_id, generated_text, None, draft['channel'])
+    final_photo_id_str = ",".join(final_photo_ids) if final_photo_ids else None
+    draft = {'photo': final_photo_id_str, 'text': generated_text, 'document': None, 'ad_added': False, 'channel': utils.get_active_channel(user_id)}
+    database.save_draft(user_id, final_photo_id_str, generated_text, None, draft['channel'])
     send_draft_preview(chat_id, draft)
 
 def send_draft_preview(chat_id, draft):

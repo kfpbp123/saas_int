@@ -24,4 +24,4 @@ if _url and not _url.startswith("http"):
 WEBAPP_URL = _url or "http://localhost:8000"
 
 # 🧠 НОВАЯ НАСТРОЙКА: Интервал умной очереди (в часах)
-SMART_QUEUE_INTERVAL_HOURS = 8
+SMART_QUEUE_INTERVAL_HOURS = 6

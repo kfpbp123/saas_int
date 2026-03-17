@@ -67,8 +67,10 @@ def add_to_queue(photo_id, text, document_id=None, channel_id=None, scheduled_ti
     c = conn.cursor()
     c.execute("INSERT INTO queue (photo_id, text, document_id, channel_id, scheduled_time, status, file_unique_id) VALUES (?, ?, ?, ?, ?, 'pending', ?)", 
               (photo_id, text, document_id, channel_id, scheduled_time, file_unique_id))
+    post_id = c.lastrowid
     conn.commit()
     conn.close()
+    return post_id
 
 def get_ready_posts():
     conn = sqlite3.connect(DB_PATH)
@@ -114,7 +116,23 @@ def get_all_pending():
 def delete_from_queue(post_id):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+    
+    # 1. Получаем время удаляемого поста перед удалением
+    c.execute("SELECT scheduled_time FROM queue WHERE id=?", (post_id,))
+    res = c.fetchone()
+    deleted_time = res[0] if res else None
+    
+    # 2. Удаляем пост
     c.execute("DELETE FROM queue WHERE id=?", (post_id,))
+    
+    # 3. Сдвигаем все последующие посты (УМНОЕ СМЕЩЕНИЕ)
+    if deleted_time:
+        import config
+        interval = getattr(config, 'SMART_QUEUE_INTERVAL_HOURS', 6) * 3600
+        # Берем все посты, которые были ЗАПЛАНИРОВАНЫ после удаленного
+        c.execute("UPDATE queue SET scheduled_time = scheduled_time - ? WHERE status='pending' AND scheduled_time > ?", (interval, deleted_time))
+        print(f"🔄 Очередь сдвинута на {interval/3600}ч после удаления {post_id}")
+
     conn.commit()
     conn.close()
 

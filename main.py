@@ -126,18 +126,31 @@ def handle_text_photo_file(message):
             send_draft_preview(chat_id, draft)
             return
 
-        # 2. АВТОПОСТИНГ (ТОЛЬКО ЕСЛИ НЕ СОЗДАЕМ ВРУЧНУЮ)
+        # 2. АВТОПОСТИНГ (СБОР ДАННЫХ)
         if database.is_auto_post_on() and not is_creating:
-            # Кэширование фото/текста (для объединения)
-            if message.photo or (message.content_type == 'text' and not message.document):
-                admin_media_cache[user_id] = {
-                    'text': text,
-                    'photo_id': message.photo[-1].file_id if message.photo else None,
-                    'time': time.time()
-                }
-                print("🖼️/📝 Данные админа сохранены в кэш")
+            # Кэширование текста
+            if message.content_type == 'text' and not message.document:
+                admin_media_cache[user_id] = admin_media_cache.get(user_id, {})
+                admin_media_cache[user_id].update({'text': text, 'time': time.time()})
+                print("📝 Текст админа сохранен")
 
-            # Обработка файла (мода)
+            # Кэширование фото (с поддержкой альбомов)
+            if message.photo:
+                admin_media_cache[user_id] = admin_media_cache.get(user_id, {})
+                current_photos = admin_media_cache[user_id].get('photo_id', "")
+                new_photo = message.photo[-1].file_id
+                
+                if message.media_group_id:
+                    # Если это альбом, добавляем через запятую
+                    if new_photo not in current_photos:
+                        updated_photos = (current_photos + "," + new_photo) if current_photos else new_photo
+                        admin_media_cache[user_id].update({'photo_id': updated_photos, 'time': time.time()})
+                else:
+                    # Одиночное фото
+                    admin_media_cache[user_id].update({'photo_id': new_photo, 'time': time.time()})
+                print(f"🖼 Фото добавлено в кэш автопостинга (всего: {len(admin_media_cache[user_id].get('photo_id','').split(','))})")
+
+            # Обработка файла (мода) -> ТРИГГЕР СОЗДАНИЯ ПОСТА
             if (message.document or message.video):
                 doc_id = message.document.file_id if message.document else message.video.file_id
                 file_unique_id = message.document.file_unique_id if message.document else message.video.file_unique_id
@@ -146,7 +159,83 @@ def handle_text_photo_file(message):
                     bot.send_message(chat_id, "⏩ Мод уже есть в базе, пропускаю.")
                     return
 
-                bot.send_message(chat_id, "🤖 Мод получен. Обработка и водяной знак...")
+                # Даем небольшую задержку, чтобы все фото из альбома успели дойти (если файл пришел первым/в середине)
+                threading.Timer(1.5, process_auto_post_delayed, args=[chat_id, user_id, doc_id, file_unique_id, text, lang]).start()
+                return
+
+    # --- РУЧНОЕ СОЗДАНИЕ (ОБЫЧНЫЕ СООБЩЕНИЯ) ---
+    if is_creating:
+        if message.content_type == 'text':
+            bot.send_chat_action(chat_id, 'typing')
+            start_generation(chat_id, user_id, text, None)
+            return
+        elif message.photo:
+            if not message.media_group_id:
+                start_generation(chat_id, user_id, message.caption, message.photo[-1].file_id)
+            elif message.media_group_id not in album_cache:
+                album_cache[message.media_group_id] = []
+                threading.Timer(2.0, process_album_immediate, args=[message.media_group_id, chat_id, user_id]).start()
+            if message.media_group_id: album_cache[message.media_group_id].append(message)
+            return
+
+def process_auto_post_delayed(chat_id, user_id, doc_id, file_unique_id, direct_text, lang):
+    try:
+        bot.send_message(chat_id, "🤖 Мод получен. Обработка и водяной знак...")
+        
+        cache = admin_media_cache.get(user_id, {})
+        cache_text = cache.get('text', "")
+        cache_photo = cache.get('photo_id')
+        
+        final_text = direct_text or cache_text or "Minecraft Mod"
+        raw_photos = cache_photo # Может быть списком через запятую
+        
+        # Генерация текста
+        ai_text = ai_generator.generate_post(final_text, lang)
+        if not ai_text or "REJECT" in ai_text.upper():
+            bot.send_message(chat_id, "⏩ Ошибка ИИ или отказ.")
+            return
+
+        # Водяной знак на все фото
+        final_photo_ids = []
+        if raw_photos:
+            photo_list = raw_photos.split(',')
+            for p_id in photo_list:
+                try:
+                    temp_in, temp_out = f"auto_in_{p_id}.jpg", f"auto_out_{p_id}.jpg"
+                    file_info = bot.get_file(p_id)
+                    with open(temp_in, 'wb') as f: f.write(bot.download_file(file_info.file_path))
+                    watermarker.add_watermark(temp_in, temp_out)
+                    with open(temp_out if os.path.exists(temp_out) else temp_in, 'rb') as f:
+                        sent = bot.send_photo(chat_id, f, caption="🎨 Накладываю водяной знак...")
+                        final_photo_ids.append(sent.photo[-1].file_id)
+                        bot.delete_message(chat_id, sent.message_id)
+                    if os.path.exists(temp_in): os.remove(temp_in)
+                    if os.path.exists(temp_out): os.remove(temp_out)
+                except: final_photo_ids.append(p_id)
+
+        final_photo_str = ",".join(final_photo_ids) if final_photo_ids else None
+        
+        # Добавляем в очередь
+        new_time = core.get_next_schedule_time()
+        post_id = database.add_to_queue(final_photo_str, ai_text, doc_id, config.DEFAULT_CHANNEL, new_time, file_unique_id)
+        
+        # Превью
+        time_str = datetime.fromtimestamp(new_time).strftime('%d.%m %H:%M')
+        caption = f"{ai_text}\n\n✅ В очереди на {time_str}"
+        markup = markups.get_queue_manage_markup(post_id, 0, lang)
+        
+        if final_photo_str and ',' in final_photo_str:
+            bot.send_media_group(chat_id, [telebot.types.InputMediaPhoto(m) for m in final_photo_str.split(',')])
+            bot.send_message(chat_id, caption, parse_mode='HTML', reply_markup=markup)
+        elif final_photo_str:
+            bot.send_photo(chat_id, final_photo_str, caption=caption[:1024], parse_mode='HTML', reply_markup=markup)
+        else:
+            bot.send_message(chat_id, caption, parse_mode='HTML', reply_markup=markup)
+
+        if user_id in admin_media_cache: del admin_media_cache[user_id]
+    except Exception as e:
+        bot.send_message(chat_id, f"❌ Ошибка: {e}")
+
                 
                 cache = admin_media_cache.get(user_id, {})
                 cache_text = cache.get('text', "")

@@ -108,16 +108,27 @@ def handle_text_photo_file(message):
     # DEBUG LOG
     if text: print(f"📩 [{chat_id}] Message: {text}")
 
-    # --- АВТОМАТИЗАЦИЯ ДЛЯ ЮЗЕРБОТА (АДМИНА) ---
+    # --- АВТОМАТИЗАЦИЯ И РУЧНОЕ СОЗДАНИЕ ---
     state_data = user_states.get(chat_id)
     is_creating = state_data and state_data.get('state') == 'creating_post'
+    is_admin = user_id in getattr(config, 'ADMIN_IDS', [])
 
-    # Если мы в процессе создания поста вручную - НЕ ПУСКАЕМ В АВТОПОСТИНГ
-    if user_id in getattr(config, 'ADMIN_IDS', []) and message.chat.type == 'private' and not is_creating:
+    if is_admin and message.chat.type == 'private':
         
-        # ПРОВЕРКА: ВКЛЮЧЕН ЛИ АВТОПОСТИНГ
-        if database.is_auto_post_on():
-            # 1. Кэширование фото/текста (для объединения)
+        # 1. ОБРАБОТКА ФАЙЛА ДЛЯ ЧЕРНОВИКА (РУЧНОЕ СОЗДАНИЕ)
+        if is_creating and (message.document or message.video):
+            doc_id = message.document.file_id if message.document else message.video.file_id
+            draft = database.get_draft(user_id) or {'photo': None, 'text': "", 'document': None, 'channel': config.DEFAULT_CHANNEL}
+            draft['document'] = doc_id
+            database.save_draft(user_id, draft['photo'], draft['text'], doc_id, draft['channel'])
+            user_states[chat_id] = None # Сбрасываем состояние
+            bot.send_message(chat_id, "📎 Файл прикреплен к черновику!", reply_markup=markups.get_main_menu(lang))
+            send_draft_preview(chat_id, draft)
+            return
+
+        # 2. АВТОПОСТИНГ (ТОЛЬКО ЕСЛИ НЕ СОЗДАЕМ ВРУЧНУЮ)
+        if database.is_auto_post_on() and not is_creating:
+            # Кэширование фото/текста (для объединения)
             if message.photo or (message.content_type == 'text' and not message.document):
                 admin_media_cache[user_id] = {
                     'text': text,
@@ -126,25 +137,13 @@ def handle_text_photo_file(message):
                 }
                 print("🖼️/📝 Данные админа сохранены в кэш")
 
-            # 2. Обработка файла (мода)
-            if (message.document or message.video) and message.chat.type == 'private':
+            # Обработка файла (мода)
+            if (message.document or message.video):
                 doc_id = message.document.file_id if message.document else message.video.file_id
                 file_unique_id = message.document.file_unique_id if message.document else message.video.file_unique_id
                 
-                # ПРОВЕРКА НА ДУБЛИКАТ
                 if database.is_duplicate(file_unique_id):
                     bot.send_message(chat_id, "⏩ Мод уже есть в базе, пропускаю.")
-                    return
-
-                # --- НОВАЯ ЛОГИКА ДЛЯ РУЧНОГО СОЗДАНИЯ ---
-                state_data = user_states.get(chat_id)
-                if state_data and state_data.get('state') == 'creating_post':
-                    draft = database.get_draft(user_id) or {'photo': None, 'text': "", 'document': None, 'channel': config.DEFAULT_CHANNEL}
-                    draft['document'] = doc_id
-                    database.save_draft(user_id, draft['photo'], draft['text'], doc_id, draft['channel'])
-                    user_states[chat_id] = None # Сбрасываем состояние
-                    bot.send_message(chat_id, "📎 Файл прикреплен к черновику!", reply_markup=markups.get_main_menu(lang))
-                    send_draft_preview(chat_id, draft)
                     return
 
                 bot.send_message(chat_id, "🤖 Мод получен. Обработка и водяной знак...")

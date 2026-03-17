@@ -43,7 +43,7 @@ Format:
 <blockquote>💖 - juda zo'r
 💔 - unchamas</blockquote>
 
-Xeshteglar: faqat 3-5 ta umumiy (masalan: #Minecraft #Survival #Tech).""",
+Xeshteglar: Faqat 3-5 ta RELEVANT xeshteg, FAQAT INGLIZ TILIDA (masalan: #Minecraft #Survival #Tech #Mod). O'zbekcha yoki ruscha xeshteglar (masalan: #sehr) mutlaqo taqiqlangan!""",
 
     "ru": """Ты — креативный редактор Telegram-канала о модах для Minecraft.
 Я передам тебе текст. Вычлени главное и напиши пост в драйвовом и веселом стиле. Уложись в 800 символов.
@@ -60,12 +60,13 @@ Xeshteglar: faqat 3-5 ta umumiy (masalan: #Minecraft #Survival #Tech).""",
 • [Фишка 1]
 • [Фишка 2]
 
-🎮 Версия: [Версия]</blockquote>
+🎮 Версия: [Versiya]</blockquote>
 
 <blockquote>💖 - Имба
 💔 - Не оч</blockquote>
 
-В конце добавь 3-5 релевантных хештегов на основе контента (например: #Tech, #Magic, #Adventure, #Optimisation, #Building, #Biomes, #Mobs). 
+В конце добавь 3-5 релевантных хештегов на основе контента. Хештеги должны быть ТОЛЬКО НА АНГЛИЙСКОМ ЯЗЫКЕ (например: #Tech, #Magic, #Adventure). 
+Русские или узбекские хештеги (например #магия, #sehr) СТРОГО ЗАПРЕЩЕНЫ. 
 Обязательно включи #Minecraft.""",
 
     "en": """You are a creative editor for a Minecraft mods Telegram channel.
@@ -88,7 +89,9 @@ Format:
 <blockquote>💖 - Awesome
 💔 - Not great</blockquote>
 
-At the end, add 3-5 relevant hashtags based on the content (e.g., #Tech, #Magic, #Adventure, #Optimisation, #Building, #Biomes, #Mobs). 
+At the end, add 3-5 relevant hashtags based on the content. 
+Hashtags must be ONLY IN ENGLISH (e.g., #Tech, #Magic, #Adventure). 
+Never use Russian or Uzbek tags. 
 Always include #Minecraft."""
 }
 

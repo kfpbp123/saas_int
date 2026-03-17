@@ -1,6 +1,6 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 import database
 import config
@@ -11,15 +11,14 @@ import web_searcher
 import ai_generator
 import uvicorn
 import os
+import io
 from pydantic import BaseModel
 from typing import Optional
+import bot_instance
+
+bot = bot_instance.bot
 
 app = FastAPI(title="Mine Bot TMA API")
-
-class ChatRequest(BaseModel):
-    message: str
-    user_id: int = 0
-    lang: str = 'uz'
 
 # Разрешаем CORS
 app.add_middleware(
@@ -29,13 +28,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/")
-async def read_index():
-    return FileResponse(os.path.join(os.path.dirname(__file__), "index.html"))
+class ChatRequest(BaseModel):
+    message: str
+    user_id: int = 0
+    lang: str = 'uz'
 
 class PostUpdate(BaseModel):
     text: Optional[str] = None
     scheduled_time: Optional[int] = None
+
+@app.get("/")
+async def read_index():
+    return FileResponse(os.path.join(os.path.dirname(__file__), "index.html"))
+
+@app.get("/api/image/{file_id}")
+async def get_image(file_id: str):
+    try:
+        # Если это несколько ID через запятую (альбом), берем первый
+        actual_id = file_id.split(',')[0]
+        file_info = bot.get_file(actual_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+        return Response(content=downloaded_file, media_type="image/jpeg")
+    except Exception as e:
+        print(f"❌ API Image Error: {e}")
+        raise HTTPException(status_code=404, detail="Image not found")
 
 @app.get("/api/stats")
 async def get_stats():
